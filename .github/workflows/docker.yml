@@ -1,6 +1,10 @@
 name: docker
-on: workflow_call
-
+on:
+  workflow_call:
+  push:
+    branches:
+      - test-hosted-runner-2  # Direct trigger for testing
+      
 permissions:
   contents: read
   packages: write
@@ -9,7 +13,7 @@ permissions:
 
 jobs:
   check-changes:
-    runs-on: dimos-runner-ubuntu-2204
+    runs-on: dimos-runner-ubuntu-2204-hosted
     outputs:
       ros:    ${{ steps.filter.outputs.ros }}
       python: ${{ steps.filter.outputs.python }}
