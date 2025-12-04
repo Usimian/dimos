@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import multiprocessing
-from typing import Optional, Union, Tuple
+from typing import Optional, Union, Tuple, List, Dict, Any
 import numpy as np
 from dimos.robot.robot import Robot
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
@@ -26,8 +26,8 @@ import os
 from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
 from reactivex.scheduler import ThreadPoolScheduler
 from dimos.utils.logging_config import setup_logger
-from dimos.perception.person_tracker import PersonTrackingStream
-from dimos.perception.object_tracker import ObjectTrackingStream
+from dimos.stream.stream_processor import StreamProcessorPipeline, create_processor
+from dimos.stream.processors import get_loaded_processors, is_processor_available
 from dimos.robot.local_planner import VFHPurePursuitPlanner, navigate_path_local
 from dimos.robot.global_planner.planner import AstarPlanner
 from dimos.types.costmap import Costmap
@@ -54,6 +54,8 @@ class UnitreeGo2(Robot):
         mock_connection: bool = False,
         skills: Optional[Union[MyUnitreeSkills, AbstractSkill]] = None,
         new_memory: bool = False,
+        stream_processors: Optional[List[str]] = None,
+        processor_configs: Optional[Dict[str, Dict[str, Any]]] = None,
     ):
         """Initialize the UnitreeGo2 robot.
 
@@ -68,9 +70,9 @@ class UnitreeGo2(Robot):
             disable_video_stream: Whether to disable the video stream
             mock_connection: Whether to mock the connection to the robot
             skills: Skills library or custom skill implementation. Default is MyUnitreeSkills() if None.
-            spatial_memory_dir: Directory for storing spatial memory data. If None, uses output_dir/spatial_memory.
-            spatial_memory_collection: Name of the collection in the ChromaDB database.
             new_memory: If True, creates a new spatial memory from scratch.
+            stream_processors: List of stream processor names to enable (e.g., ["person_tracking", "object_detection"]).
+            processor_configs: Dictionary of processor configurations keyed by processor name.
         """
         print(f"Initializing UnitreeGo2 with use_ros: {use_ros} and use_webrtc: {use_webrtc}")
         if not (use_ros ^ use_webrtc):  # XOR operator ensures exactly one is True
@@ -136,24 +138,16 @@ class UnitreeGo2(Robot):
         else:
             self.video_stream = None
 
-        # Initialize visual servoing if enabled
+        # Initialize stream processing pipeline if enabled
+        self.stream_pipeline = None
+        self.processed_streams = {}
+        
         if self.video_stream is not None:
             self.video_stream_ros = self.get_ros_video_stream(fps=8)
-            self.person_tracker = PersonTrackingStream(
-                camera_intrinsics=self.camera_intrinsics,
-                camera_pitch=self.camera_pitch,
-                camera_height=self.camera_height,
-            )
-            self.object_tracker = ObjectTrackingStream(
-                camera_intrinsics=self.camera_intrinsics,
-                camera_pitch=self.camera_pitch,
-                camera_height=self.camera_height,
-            )
-            person_tracking_stream = self.person_tracker.create_stream(self.video_stream_ros)
-            object_tracking_stream = self.object_tracker.create_stream(self.video_stream_ros)
-
-            self.person_tracking_stream = person_tracking_stream
-            self.object_tracking_stream = object_tracking_stream
+            
+            # Initialize stream processors based on configuration
+            if stream_processors:
+                self._initialize_stream_processors(stream_processors, processor_configs or {})
 
         # Initialize the local planner and create BEV visualization stream
         self.local_planner = VFHPurePursuitPlanner(
@@ -179,6 +173,82 @@ class UnitreeGo2(Robot):
         # Create the visualization stream at 5Hz
         self.local_planner_viz_stream = self.local_planner.create_stream(frequency_hz=5.0)
 
+    def _initialize_stream_processors(self, processor_names: List[str], processor_configs: Dict[str, Dict[str, Any]]):
+        """Initialize stream processors based on configuration.
+        
+        Args:
+            processor_names: List of processor names to initialize
+            processor_configs: Configuration dictionary for each processor
+        """
+        logger.info(f"Initializing stream processors: {processor_names}")
+        
+        # Check which processors are available
+        loaded_processors = get_loaded_processors()
+        logger.info(f"Available processors: {[name for name, loaded in loaded_processors.items() if loaded]}")
+        
+        # Create pipeline
+        self.stream_pipeline = StreamProcessorPipeline("unitree_go2_pipeline")
+        
+        # Default camera configuration
+        default_camera_config = {
+            "camera_intrinsics": self.camera_intrinsics,
+            "camera_pitch": self.camera_pitch,
+            "camera_height": self.camera_height,
+            "device": "cpu"  # Default to CPU for compatibility
+        }
+        
+        # Add processors to pipeline
+        for processor_name in processor_names:
+            if not is_processor_available(processor_name):
+                logger.warning(f"Processor '{processor_name}' is not available (missing dependencies)")
+                continue
+                
+            try:
+                # Merge default config with user config
+                config = default_camera_config.copy()
+                if processor_name in processor_configs:
+                    config.update(processor_configs[processor_name])
+                
+                # Create processor
+                processor = create_processor(
+                    processor_type=processor_name,
+                    name=f"{processor_name}_processor",
+                    config=config
+                )
+                
+                # Add to pipeline
+                self.stream_pipeline.add_processor(processor)
+                logger.info(f"Added processor: {processor_name}")
+                
+            except Exception as e:
+                logger.error(f"Failed to initialize processor '{processor_name}': {e}")
+        
+        # Create processed stream if we have processors
+        if self.stream_pipeline.processors:
+            self.processed_streams["main"] = self.stream_pipeline.create_stream(self.video_stream_ros)
+            logger.info(f"Created main processed stream with {len(self.stream_pipeline.processors)} processors")
+        else:
+            logger.warning("No stream processors were successfully initialized")
+
+    def get_processed_stream(self, stream_name: str = "main"):
+        """Get a processed stream by name.
+        
+        Args:
+            stream_name: Name of the processed stream
+            
+        Returns:
+            Observable stream or None if not available
+        """
+        return self.processed_streams.get(stream_name)
+
+    def get_available_processors(self) -> Dict[str, bool]:
+        """Get information about available stream processors.
+        
+        Returns:
+            Dictionary mapping processor names to availability status
+        """
+        return get_loaded_processors()
+
     def get_skills(self) -> Optional[SkillLibrary]:
         return self.skill_library
 
@@ -194,3 +264,15 @@ class UnitreeGo2(Robot):
         [position, rotation] = self.ros_control.transform_euler("base_link")
 
         return position, rotation
+
+    def cleanup(self):
+        """Clean up resources used by the robot."""
+        # Clean up stream processors
+        if self.stream_pipeline:
+            self.stream_pipeline.cleanup()
+        
+        # Clean up processed streams
+        self.processed_streams.clear()
+        
+        # Call parent cleanup
+        super().cleanup()

@@ -14,6 +14,7 @@
 
 from dimos.types.vector import Vector
 from typing import Union, Optional
+import numpy as np
 from dimos.robot.unitree_webrtc.type.map import Map
 from dimos.robot.unitree_webrtc.connection import WebRTCRobot
 from dimos.robot.global_planner.planner import AstarPlanner
@@ -66,30 +67,14 @@ class UnitreeGo2(WebRTCRobot):
         #         self.skill_library.init()
         #         self.skill_library.initialize_skills()
 
-        # # Camera stuff
-        # self.camera_intrinsics = [819.553492, 820.646595, 625.284099, 336.808987]
-        # self.camera_pitch = np.deg2rad(0)  # negative for downward pitch
-        # self.camera_height = 0.44  # meters
+        # Camera stuff
+        self.camera_intrinsics = [819.553492, 820.646595, 625.284099, 336.808987]
+        self.camera_pitch = np.deg2rad(0)  # negative for downward pitch
+        self.camera_height = 0.44  # meters
 
-        # os.makedirs(self.output_dir, exist_ok=True)
-
-        # # Initialize visual servoing if enabled
-        # if self.get_video_stream() is not None:
-        #     self.person_tracker = PersonTrackingStream(
-        #         camera_intrinsics=self.camera_intrinsics,
-        #         camera_pitch=self.camera_pitch,
-        #         camera_height=self.camera_height,
-        #     )
-        #     self.object_tracker = ObjectTrackingStream(
-        #         camera_intrinsics=self.camera_intrinsics,
-        #         camera_pitch=self.camera_pitch,
-        #         camera_height=self.camera_height,
-        #     )
-        #     person_tracking_stream = self.person_tracker.create_stream(self.get_video_stream())
-        #     object_tracking_stream = self.object_tracker.create_stream(self.get_video_stream())
-
-        #     self.person_tracking_stream = person_tracking_stream
-        #     self.object_tracking_stream = object_tracking_stream
+        # Stream processing pipeline (can be configured externally)
+        self.stream_pipeline = None
+        self.processed_streams = {}
 
         # Initialize the local planner and create BEV visualization stream
         # self.local_planner = VFHPurePursuitPlanner(
