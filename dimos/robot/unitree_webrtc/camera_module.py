@@ -30,7 +30,7 @@ from dimos_lcm.sensor_msgs import CameraInfo
 from dimos.msgs.std_msgs import Header
 from dimos.protocol.tf import TF
 from dimos.utils.logging_config import setup_logger
-from dimos.utils.ipc_factory import CPU_IPC_Factory, CUDA_IPC_Factory
+from dimos.protocol.pubsub.shm.ipc_factory import CPU_IPC_Factory, CUDA_IPC_Factory
 from dimos.utils.multirate import MultiRateProcessor
 from dimos.utils.dask_frame_cluster import SourceActor
 from dimos.perception.common.utils import colorize_depth
@@ -112,6 +112,7 @@ class UnitreeCameraModule(Module):
         self._multirateprocessor: Optional[MultiRateProcessor] = None
 
         self._depth_pipeline_timestamps = deque(maxlen=60)
+        self._latency_window = deque(maxlen=50)  # rolling average over last 50 frames
         self._fps_depth = 0.0
 
         # Threading
@@ -207,7 +208,7 @@ class UnitreeCameraModule(Module):
                 # 3) Build processor on the attached reader slot
                 self._multirateprocessor = MultiRateProcessor(
                     channel=self.slot,
-                    target_fps_by_model={"depth": 15},
+                    target_fps_by_model={"depth": 30},
                     handlers={"depth": self._process_depth},
                     max_age_s=0.1,
                 )
@@ -219,7 +220,8 @@ class UnitreeCameraModule(Module):
 
             # Push this frame into the channel via SourceActor
             start = time.time()
-            self._source.publish(cp.asarray(msg.data) if self.backend == "cuda" else msg.data)
+            self._process_depth(cp.asarray(msg.data) if self.backend == "cuda" else msg.data)
+            #self._source.publish(cp.asarray(msg.data) if self.backend == "cuda" else msg.data)
             end = time.time()
             logger.info(
                 f"self.source_publish returned. Time: {end}. Time taken: {end - start:.4f} seconds"
@@ -270,6 +272,14 @@ class UnitreeCameraModule(Module):
             frame_end = time.time()
             logger.info(f"Frame COMPLETE latency={(frame_end - frame_start) * 1000:.1f} ms")
 
+            self._latency_window.append((frame_end - frame_start))
+
+            if len(self._latency_window) > 0:
+                avg_latency = sum(self._latency_window) / len(self._latency_window)
+                fps = 1.0 / avg_latency if avg_latency > 0 else 0.0
+                logger.info(f"End-to-end FPS (latency-based): {fps:.2f}, avg latency={avg_latency*1000:.1f} ms")
+
+
             # --- FPS counter over sliding window ---
             now = time.time()
             self._depth_pipeline_timestamps.append(now)
@@ -277,7 +287,7 @@ class UnitreeCameraModule(Module):
                 elapsed = self._depth_pipeline_timestamps[-1] - self._depth_pipeline_timestamps[0]
                 if elapsed > 0:
                     self._pipeline_fps = (len(self._depth_pipeline_timestamps) - 1) / elapsed
-                    logger.info(f"End-to-end FPS: {self._pipeline_fps:.2f}")
+                    logger.info(f"Throughput end-to-end FPS: {self._pipeline_fps:.2f}")
 
         except Exception as e:
             logger.error(f"Error processing depth: {e}", exc_info=True)
