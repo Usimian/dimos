@@ -4,68 +4,46 @@ React Native mobile application (v0.0.1).
 
 ## Prerequisites
 
-- **Node.js** >= 18.0.0
-- **React Native CLI**: `npm install -g @react-native-community/cli`
-- **Xcode** (for iOS development)
-- **Android Studio** (for Android development)
-- **CocoaPods** (for iOS): `sudo gem install cocoapods`
+- **Node.js** >= 18
+- **Xcode** (for iOS)
+- **Android Studio** (for Android)
+- **CocoaPods** (iOS): `sudo gem install cocoapods`
 
-## Installation
+## Quick start
 
-1. **Install dependencies**:
+1. Install JS deps
    ```bash
    npm install
    ```
-
-2. **Install iOS dependencies** (macOS only):
+2. Install iOS pods (macOS only)
    ```bash
    cd ios && pod install && cd ..
    ```
+3. Run the app
+   - iOS: `npm run ios`
+   - Android: `npm run android`
 
-## Running the App
+Metro bundler starts automatically; you can also run it manually with `npm start`.
 
-### Start Metro Bundler
-```bash
-npm start
-```
+## Scripts
 
-### iOS
-```bash
-npm run ios
-```
-
-### Android
-```bash
-npm run android
-```
-
-## Development Scripts
-
-- `npm start` - Start Metro bundler
-- `npm run ios` - Run on iOS
-- `npm run android` - Run on Android
-- `npm run lint` - Run ESLint
-- `npm test` - Run Jest tests
+- `npm start` – Start Metro bundler
+- `npm run ios` – Run on iOS simulator/device
+- `npm run android` – Run on Android emulator/device
+- `npm run lint` – Run ESLint
+- `npm test` – Run Jest tests
 
 ## Troubleshooting
 
-**Clear Metro cache:**
-```bash
-npx react-native start --reset-cache
-```
-
-**iOS build issues:**
-```bash
-cd ios && rm -rf Pods && pod install && cd ..
-```
-
-**Android build issues:**
-```bash
-cd android && ./gradlew clean && cd ..
-```
-
-**Clear all caches:**
-```bash
-npx react-native start --reset-cache
-rm -rf node_modules && npm install
-```
+- Reset Metro cache
+  ```bash
+  npx react-native start --reset-cache
+  ```
+- iOS: reinstall pods
+  ```bash
+  cd ios && rm -rf Pods && pod install && cd ..
+  ```
+- Android: clean build
+  ```bash
+  cd android && ./gradlew clean && cd ..
+  ```
