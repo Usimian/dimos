@@ -61,9 +61,8 @@ class NetworkOutputNode(GStreamerSinkBase):
 
     def _configure_sink(self):
         """Configure the udpsink after pipeline creation."""
-        # Use sync=False for network sinks - we send packets as fast as they're ready
-        # The encoder (Opus) naturally paces output, and the receiver buffers
-        # Use async=False for immediate state changes
+        # Use sync=False - send packets as fast as encoder produces them
+        # With proper queue buffering, this prevents initial packet loss
         from gi.repository import Gst
 
         # Get udpsink by iterating elements
@@ -73,7 +72,9 @@ class NetworkOutputNode(GStreamerSinkBase):
             if elem.get_factory().get_name() == "udpsink":
                 elem.set_property("sync", False)
                 elem.set_property("async", False)
-                logger.info(f"Set sync=False, async=False on udpsink")
+                # Increase UDP buffer to prevent packet loss during bursts
+                elem.set_property("buffer-size", 2097152)  # 2MB buffer
+                logger.info(f"Set sync=False, async=False, buffer-size=2MB on udpsink")
                 break
             result, elem = it.next()
 
