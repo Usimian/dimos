@@ -13,15 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for TTS input."""
+"""Tests for OpenAI TTS input."""
 
 import os
-import time
 
 import pytest
 
-from dimos.stream.audio2.input.tts import Voice, openai_tts
-from dimos.stream.audio2.operators import normalizer, raw_normalizer, robotize, vumeter
+from dimos.stream.audio2.input.tts_oai import Voice, openai_tts
+from dimos.stream.audio2.operators import robotize
 from dimos.stream.audio2.output.soundcard import speaker
 
 # Skip all TTS tests if no OpenAI API key is available

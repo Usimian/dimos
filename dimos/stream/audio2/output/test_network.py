@@ -30,6 +30,7 @@ from dimos.utils.data import get_data
 host = "10.0.0.191"
 
 
+@pytest.mark.tool
 def test_network_output_to_server_signal():
     """Test streaming to actual server with a robotic melody (requires manual setup)."""
 
@@ -70,6 +71,7 @@ def test_network_output_to_server_signal():
     time.sleep(0.2)
 
 
+@pytest.mark.tool
 def test_network_output_to_server_file():
     """Test streaming to actual server (requires manual setup)."""
 

@@ -36,11 +36,14 @@
 
           ### GTK / OpenCV helpers
           glib gtk3 gdk-pixbuf gobject-introspection
-          
+
           ### GStreamer
           gst_all_1.gstreamer gst_all_1.gst-plugins-base gst_all_1.gst-plugins-good
           gst_all_1.gst-plugins-bad gst_all_1.gst-plugins-ugly
           python312Packages.gst-python
+
+          ### Text-to-speech
+          espeak-ng alsa-lib
 
           ### Open3D & build-time
           eigen cmake ninja jsoncpp libjpeg libpng
@@ -63,7 +66,8 @@
               pkgs.xorg.libxcb pkgs.xorg.libXScrnSaver pkgs.xorg.libXxf86vm
               pkgs.udev pkgs.portaudio pkgs.SDL2.dev pkgs.zlib pkgs.glib pkgs.gtk3
               pkgs.gdk-pixbuf pkgs.gobject-introspection pkgs.lcm pkgs.pcre2
-              pkgs.gst_all_1.gstreamer pkgs.gst_all_1.gst-plugins-base]}:$LD_LIBRARY_PATH"
+              pkgs.gst_all_1.gstreamer pkgs.gst_all_1.gst-plugins-base
+              pkgs.espeak-ng pkgs.alsa-lib]}:$LD_LIBRARY_PATH"
 
             export DISPLAY=:0
             export GI_TYPELIB_PATH="${pkgs.gst_all_1.gstreamer}/lib/girepository-1.0:${pkgs.gst_all_1.gst-plugins-base}/lib/girepository-1.0:$GI_TYPELIB_PATH"

@@ -17,6 +17,7 @@
 from dimos.stream.audio2.input.file import file_input
 from dimos.stream.audio2.input.microphone import microphone
 from dimos.stream.audio2.input.signal import signal
-from dimos.stream.audio2.input.tts import Voice, openai_tts
+from dimos.stream.audio2.input.tts_oai import Voice, openai_tts
+from dimos.stream.audio2.input.tts_pyttsx3 import pyttsx3_tts
 
-__all__ = ["file_input", "microphone", "signal", "openai_tts", "Voice"]
+__all__ = ["file_input", "microphone", "signal", "openai_tts", "Voice", "pyttsx3_tts"]
