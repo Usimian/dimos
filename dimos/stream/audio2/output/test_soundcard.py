@@ -38,6 +38,16 @@ def test_speaker_with_test_signal():
     ).pipe(speaker()).run()
 
 
+def test_speaker_with_test_signal_encoded():
+    # Clean API: pipe speaker and run to block
+    test_signal(
+        waveform=WaveformType.SINE,
+        frequency=440.0,
+        volume=0.5,  # Moderate volume for testing
+        duration=0.5,  # Short duration for testing
+    ).pipe(speaker()).run()
+
+
 def test_speaker_with_file():
     # Clean API: pipe speaker and run to block
     file_input(

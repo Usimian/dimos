@@ -55,13 +55,15 @@ class SoundcardOutputNode(GStreamerSinkBase):
 
     def _get_pipeline_string(self) -> str:
         """Build the soundcard output pipeline."""
-        # Simple pipeline that handles raw audio directly
-        # For compressed audio support, we'd need to detect format and add decoder
-        # Add queue for buffering
-        # Use audioconvert and audioresample for format flexibility
+        # Pipeline with decoder support for both raw and compressed audio
+        # decodebin auto-detects and decodes compressed formats
+        # queue for buffering
+        # audioconvert and audioresample for format flexibility
         # autoaudiosink automatically selects the best available sink
         parts = [
             "queue",
+            "!",
+            "decodebin",
             "!",
             "audioconvert",
             "!",
