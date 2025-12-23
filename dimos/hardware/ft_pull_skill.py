@@ -181,15 +181,6 @@ class FTPullModule(Module):
         # 1. Stop any ongoing pull
         self.stop_requested = True
         self.running = False
-
-        # 2. Dispose existing subscriptions
-        if self._force_subscription:
-            self._force_subscription.dispose()
-            self._force_subscription = None
-        if self._torque_subscription:
-            self._torque_subscription.dispose()
-            self._torque_subscription = None
-
         # 3. Clear all state variables
         with self.force_lock:
             self.latest_force = None
@@ -259,16 +250,7 @@ class FTPullModule(Module):
         self.stop_requested = True
         self.running = False
 
-        # 2. Dispose of subscriptions
-        if self._force_subscription:
-            self._force_subscription.dispose()
-            self._force_subscription = None
-            logger.info("Disposed force subscription")
 
-        if self._torque_subscription:
-            self._torque_subscription.dispose()
-            self._torque_subscription = None
-            logger.info("Disposed torque subscription")
 
         # 3. Disconnect from xARM
         if self.arm:
@@ -1120,12 +1102,7 @@ class FTPullModule(Module):
     def cleanup(self):
         """Clean up resources."""
         # Dispose subscriptions first
-        if self._force_subscription:
-            self._force_subscription.dispose()
-            self._force_subscription = None
-        if self._torque_subscription:
-            self._torque_subscription.dispose()
-            self._torque_subscription = None
+
 
         # Then disconnect xARM
         if self.arm:
