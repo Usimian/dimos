@@ -178,10 +178,7 @@ class MetaQuestModule(Module):
                 # Apply coordinate transform if enabled
                 if self.transform_to_ros:
                     # Transform from WebXR to ROS coordinate system
-                    ros_pos, ros_quat = webxr_to_ros_pose(
-                        frame.left.position,
-                        frame.left.rotation
-                    )
+                    ros_pos, ros_quat = webxr_to_ros_pose(frame.left.position, frame.left.rotation)
                     left_pose = PoseStamped(
                         ts=frame.timestamp,
                         frame_id="world",
@@ -203,8 +200,7 @@ class MetaQuestModule(Module):
                 if self.transform_to_ros:
                     # Transform from WebXR to ROS coordinate system
                     ros_pos, ros_quat = webxr_to_ros_pose(
-                        frame.right.position,
-                        frame.right.rotation
+                        frame.right.position, frame.right.rotation
                     )
                     right_pose = PoseStamped(
                         ts=frame.timestamp,

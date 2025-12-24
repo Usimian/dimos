@@ -132,8 +132,9 @@ class PoseStamped(Pose, Timestamped):
         rotated_position = self.orientation.rotate_vector(other_position)
         new_position = self.position + rotated_position
 
-
-        return PoseStamped(self.ts, frame_id = self.frame_id, position=new_position, orientation=new_orientation)
+        return PoseStamped(
+            self.ts, frame_id=self.frame_id, position=new_position, orientation=new_orientation
+        )
 
     def new_transform_to(self, name: str) -> Transform:
         return self.find_transform(
