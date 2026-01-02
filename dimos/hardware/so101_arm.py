@@ -37,7 +37,7 @@ logger = setup_logger(__file__)
 
 
 class SO101Arm:
-    def __init__(self, arm_name: str = "arm", port: str = "/dev/ttyUSB0") -> None:
+    def __init__(self, arm_name: str = "arm", port: str = "/dev/ttyACM0") -> None:
         self.arm_name = arm_name
         self.arm = SO101Interface(port=port)
 
@@ -49,7 +49,7 @@ class SO101Arm:
         self.enable()
 
         # Go to a known configuration
-        self.gotoZero()
+        self.gotoObserve()
         time.sleep(1)
 
         # Init velocity controller (Jacobians etc.)
@@ -68,20 +68,29 @@ class SO101Arm:
     def disable(self) -> None:
         """Soft-stop and fully disable motors + bus."""
         self.softStop()
-        self.arm.disable()
         self.arm.disconnect()
 
     def gotoZero(self, duration: float | None = None) -> None:
         """Move to home position (all joints at 0 rad)."""
-        q_zero = np.zeros(5, dtype=float)
-        self.arm.move_joint_ptp(q_zero, duration=duration)
         logger.info("Going to zero")
+        q_zero = np.array([-0.03989324, -1.81284089, 1.69085964, 1.28578981, -0.00613742], dtype=float)
+        self.arm.move_joint_ptp(q_zero, duration=duration)
+
+        self.release_gripper()
+        time.sleep(1.0)
+        self.close_gripper()
+        time.sleep(0.5)
 
     def gotoObserve(self, duration: float | None = None) -> None:
         """Move to an 'observe' pose with simple joint interpolation."""
-        observe_angles = np.radians([0.0, -30.0, 30.0, 0.0, 0.0])
-        self.arm.move_joint_ptp(observe_angles, duration=duration)
         logger.info("Going to observe")
+        observe_angles = np.zeros(5, dtype=float)
+        self.arm.move_joint_ptp(observe_angles, duration=duration)
+        print("ee pose: ", self.get_ee_pose())
+        self.release_gripper()
+        time.sleep(1.0)
+        self.close_gripper()
+        time.sleep(0.5)
 
     def softStop(self) -> None:
         """Move to zero and then disable torque (no hard 'kill')."""
@@ -120,30 +129,80 @@ class SO101Arm:
 
     def release_gripper(self) -> None:
         """Open gripper to ~max opening."""
-        self.cmd_gripper_ctrl(0.1)
+        self.cmd_gripper_ctrl(0.04) # 0.1
+
+    # def get_gripper_feedback(self) -> tuple[float, float]:
+    #     """
+    #     Get gripper position (meters) and normalized effort (0..1).
+
+    #     Under the hood:
+    #       - Feetech Present_Load is approx −1000..1000.
+    #       - We map |load| / 1000 → [0,1].
+    #     """
+    #     position_m, raw_load = self.arm.get_gripper_state()
+    #     norm_effort = min(1.0, raw_load / 1000.0)
+    #     return position_m, norm_effort
 
     def get_gripper_feedback(self) -> tuple[float, float]:
         """
         Get gripper position (meters) and normalized effort (0..1).
 
         Under the hood:
-          - Feetech Present_Load is approx −1000..1000.
-          - We map |load| / 1000 → [0,1].
+        - Feetech Present_Load is approx −1000..1000 (sign = direction).
+        - We use |load| / 1000 → [0,1].
         """
         position_m, raw_load = self.arm.get_gripper_state()
-        norm_effort = min(1.0, abs(raw_load) / 1000.0)
+
+        # Use magnitude, not signed value
+        effort_mag = abs(raw_load)
+
+        # Clamp to nominal range
+        effort_mag = min(1000.0, effort_mag)
+
+        norm_effort = effort_mag / 1000.0
         return position_m, norm_effort
+
+    # def close_gripper(self, commanded_effort: float = 0.5) -> None:
+    #     """
+    #     Close gripper to 0.0 m.
+
+    #     `commanded_effort` is stored and used as a *threshold* in
+    #     `gripper_object_detected`. It does not send a real torque command.
+    #     """
+    #     self._last_gripper_effort_cmd = commanded_effort
+    #     # Just command closed position; internal servo torque handles gripping
+    #     self.cmd_gripper_ctrl(0.003, effort=commanded_effort)
 
     def close_gripper(self, commanded_effort: float = 0.5) -> None:
         """
-        Close gripper to 0.0 m.
+        Close gripper until we hit a load threshold, then back off slightly.
 
-        `commanded_effort` is stored and used as a *threshold* in
-        `gripper_object_detected`. It does not send a real torque command.
+        commanded_effort is a *logical* effort in [0,1] used for thresholds.
         """
         self._last_gripper_effort_cmd = commanded_effort
-        # Just command closed position; internal servo torque handles gripping
-        self.cmd_gripper_ctrl(0.0, effort=commanded_effort)
+
+        # Where are we now?
+        pos, _ = self.get_gripper_feedback()
+        target_closed = 0.0
+
+        # Don’t overshoot completely if we’re already almost closed
+        start = max(target_closed, min(0.04, pos))
+        steps = 10
+        backoff = 0.002
+        threshold = 0.8 * commanded_effort  # same heuristic as gripper_object_detected
+        print("threshold: ", threshold)
+        for i in range(steps):
+            alpha = (i + 1) / steps
+            cmd_pos = start + (target_closed - start) * alpha
+            self.cmd_gripper_ctrl(cmd_pos, effort=commanded_effort)
+            time.sleep(0.05)
+
+            _p, actual_effort = self.get_gripper_feedback()
+            print("actual_effort: ", actual_effort)
+            if actual_effort >= threshold:
+                # Contact detected – relieve a tiny bit of pressure
+                self.cmd_gripper_ctrl(cmd_pos + backoff, effort=commanded_effort)
+                break
 
     def gripper_object_detected(self, commanded_effort: float | None = None) -> bool:
         """

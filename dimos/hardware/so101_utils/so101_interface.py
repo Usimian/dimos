@@ -24,7 +24,7 @@ from lerobot.motors import Motor, MotorCalibration, MotorNormMode
 from lerobot.motors.feetech import FeetechMotorsBus, OperatingMode
 from scipy.spatial.transform import Rotation as R, Slerp
 
-from dimos.hardware.kinpy_kinematics import KinpyKinematics
+from dimos.hardware.lerobot_kinematics import LerobotKinematics
 from dimos.msgs.geometry_msgs import Pose, Vector3, Quaternion
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ class SO101Interface:
 
     Responsibilities:
       - Feetech bus setup (IDs, calibration, operating modes, PID).
-      - Kinematics via KinpyKinematics (FK / IK / Jacobians).
+      - Kinematics via LerobotKinematics (FK / IK / Jacobians).
       - Joint-space get/set and joint PTP.
       - Cartesian-space PTP + linear interpolation.
       - Gripper position + load feedback.
@@ -45,9 +45,9 @@ class SO101Interface:
     def __init__(
         self,
         port: str = "/dev/ttyUSB0",
-        urdf_path: str = "dimos/hardware/so101.urdf",
+        urdf_path: str = "dimos/hardware/so101_utils/urdf/so101_new_calib.urdf",
         ee_link_name: str = "gripper_link",
-        calibration_path: str = "dimos/hardware/so101_arm/calibration/so101_arm.json",
+        calibration_path: str = "dimos/hardware/so101_utils/calibration/so101_arm.json",
     ) -> None:
         self.port = port
         self.urdf_path = urdf_path
@@ -55,7 +55,7 @@ class SO101Interface:
         self.calibration_path = calibration_path
 
         self.bus: FeetechMotorsBus | None = None
-        self.kinematics: KinpyKinematics | None = None
+        self.kinematics: LerobotKinematics | None = None
 
         # Motor configuration: 5 DOF arm + 1 gripper
         self.motor_names = [
@@ -80,11 +80,15 @@ class SO101Interface:
 
         # Initialize kinematics
         try:
-            self.kinematics = KinpyKinematics(self.urdf_path, self.ee_link_name)
+            # Pass joint_names to exclude gripper (only use 5 arm joints)
+            self.kinematics = LerobotKinematics(
+                self.urdf_path, self.ee_link_name, joint_names=self.motor_names
+            )
             logger.info(
-                "Initialized KinpyKinematics with URDF %s, EE link %s",
+                "Initialized LerobotKinematics with URDF %s, EE link %s, joints %s",
                 self.urdf_path,
                 self.ee_link_name,
+                self.motor_names,
             )
         except Exception as e:
             logger.warning(f"Failed to initialize kinematics: {e}")
@@ -126,9 +130,9 @@ class SO101Interface:
             "sts3215",
             MotorNormMode.RANGE_0_100,
         )
-
+        self.gripper_motor = motors[self.gripper_name]
         calibration = self._load_calibration()
-
+        print(f"Calibration: {calibration}")
         self.bus = FeetechMotorsBus(
             port=self.port,
             motors=motors,
@@ -208,7 +212,7 @@ class SO101Interface:
         if not self.bus:
             return np.zeros(len(self.motor_names), dtype=float)
 
-        values = self.bus.read("Present_Position")
+        values = self.bus.sync_read("Present_Position")
         q_deg = np.array([values[name] for name in self.motor_names], dtype=float)
         return q_deg if degree else np.radians(q_deg)
 
@@ -233,7 +237,7 @@ class SO101Interface:
 
         q_deg = q if degree else np.degrees(q)
         cmd = {name: float(q_deg[i]) for i, name in enumerate(self.motor_names)}
-        self.bus.write("Goal_Position", cmd)
+        self.bus.sync_write("Goal_Position", cmd)
 
     def move_joint_ptp(self, q_target: np.ndarray, duration: float | None = None) -> None:
         """
@@ -309,14 +313,17 @@ class SO101Interface:
             raise RuntimeError("Kinematics not initialized.")
 
         # Current Cartesian pose
-        start_pos, start_quat_wxyz = self.kinematics.fk(current_q)
+        # LerobotKinematics expects degrees for fk/ik
+        current_q_deg = np.degrees(current_q)
+        start_pos, start_quat_wxyz = self.kinematics.fk(current_q_deg)
         dt = 0.02  # 50 Hz
 
         dist = np.linalg.norm(target_pos - start_pos)
         if dist < 1e-6:
             # Same position; just do a PTP in joints
-            q_start = np.asarray(current_q, dtype=float)
-            q_target = self.kinematics.ik(q_start, target_pos, target_quat_wxyz)
+            q_start_deg = np.degrees(np.asarray(current_q, dtype=float))
+            q_target_deg = self.kinematics.ik(q_start_deg, target_pos, target_quat_wxyz)
+            q_target = np.radians(q_target_deg)
 
             # Reuse the generic joint-space PTP helper
             self.move_joint_ptp(q_target, duration=duration)
@@ -367,7 +374,10 @@ class SO101Interface:
                 dtype=float,
             )
 
-            q_sol = self.kinematics.ik(current_q, interp_pos, interp_quat_wxyz)
+            # LerobotKinematics expects degrees for ik
+            current_q_deg = np.degrees(current_q)
+            q_sol_deg = self.kinematics.ik(current_q_deg, interp_pos, interp_quat_wxyz)
+            q_sol = np.radians(q_sol_deg)
             self.set_joint_angles(q_sol)
             current_q = q_sol
 
@@ -384,7 +394,9 @@ class SO101Interface:
             raise RuntimeError("Kinematics not initialized.")
 
         q = self.get_joint_angles()
-        pos, quat_wxyz = self.kinematics.fk(q)
+        # LerobotKinematics expects degrees for fk
+        q_deg = np.degrees(q)
+        pos, quat_wxyz = self.kinematics.fk(q_deg)
 
         position = Vector3(pos[0], pos[1], pos[2])
         orientation = Quaternion(
@@ -425,8 +437,10 @@ class SO101Interface:
         if linear:
             self._move_linear(current_q, target_pos, target_quat_wxyz, duration=duration)
         else:
-            q_start = np.asarray(current_q, dtype=float)
-            q_target = self.kinematics.ik(q_start, target_pos, target_quat_wxyz)
+            # LerobotKinematics expects degrees for ik
+            q_start_deg = np.degrees(np.asarray(current_q, dtype=float))
+            q_target_deg = self.kinematics.ik(q_start_deg, target_pos, target_quat_wxyz)
+            q_target = np.radians(q_target_deg)
 
             # Reuse the generic joint-space PTP helper
             self.move_joint_ptp(q_target, duration=duration)
@@ -448,8 +462,7 @@ class SO101Interface:
         # Map 0–0.1 m → 0–100 normalized range
         val = (position / 0.1) * 100.0
         val = max(0.0, min(100.0, val))
-
-        self.bus.write("Goal_Position", {self.gripper_name: val})
+        self.bus.write("Goal_Position", self.gripper_name, val)
 
     def get_gripper_state(self) -> Tuple[float, float]:
         """
@@ -464,16 +477,15 @@ class SO101Interface:
             return 0.0, 0.0
 
         try:
-            vals = self.bus.read("Present_Position")
-            efforts = self.bus.read("Present_Load")
+            vals = self.bus.read("Present_Position", self.gripper_name)
+            efforts = self.bus.read("Present_Load", self.gripper_name)
 
-            raw_pos = float(vals[self.gripper_name])
+            raw_pos = float(vals)
             # Inverse of set_gripper_position mapping:
             # val (0–100) → approx 0–0.1 m
             position_m = max(0.0, min(0.1, raw_pos * 0.001))
 
-            load = float(efforts[self.gripper_name])
-
+            load = float(efforts)
             return position_m, load
         except Exception as e:
             logger.warning(f"Failed to read gripper state: {e}")
