@@ -16,52 +16,39 @@
 import logging
 import time
 
-from dimos import core
-from dimos.core import Module, In, Out, rpc
-from dimos.msgs.geometry_msgs import PoseStamped, TwistStamped, Transform, Vector3
-from dimos.msgs.nav_msgs import Odometry
-from dimos.msgs.sensor_msgs import PointCloud2, Joy
+from dimos.core import In, Module, Out, rpc
+from dimos.msgs.geometry_msgs import PoseStamped
+from dimos.msgs.sensor_msgs import Joy
 from dimos.msgs.std_msgs.Bool import Bool
-from dimos.msgs.std_msgs.Header import Header
-from dimos.msgs.tf2_msgs.TFMessage import TFMessage
-from dimos.protocol.tf import TF
-from dimos.robot.ros_bridge import ROSBridge, BridgeDirection
-from dimos.utils.transform_utils import euler_to_quaternion
-from geometry_msgs.msg import TwistStamped as ROSTwistStamped
-from geometry_msgs.msg import PoseStamped as ROSPoseStamped
-from nav_msgs.msg import Odometry as ROSOdometry
-from sensor_msgs.msg import PointCloud2 as ROSPointCloud2
-from std_msgs.msg import Bool as ROSBool
-from tf2_msgs.msg import TFMessage as ROSTFMessage
 from dimos.utils.logging_config import setup_logger
-from dimos.protocol.pubsub.lcmpubsub import LCM, Topic
 
 logger = setup_logger("dimos.robot.unitree_webrtc.nav_bot", level=logging.INFO)
 
 
+# TODO: Remove, deprecated
 class NavigationModule(Module):
-    goal_pose: Out[PoseStamped] = None
-    goal_reached: In[Bool] = None
-    cancel_goal: Out[Bool] = None
-    joy: Out[Joy] = None
+    goal_pose: Out[PoseStamped] = None  # type: ignore[assignment]
+    goal_reached: In[Bool] = None  # type: ignore[assignment]
+    cancel_goal: Out[Bool] = None  # type: ignore[assignment]
+    joy: Out[Joy] = None  # type: ignore[assignment]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         """Initialize NavigationModule."""
         Module.__init__(self, *args, **kwargs)
         self.goal_reach = None
 
     @rpc
-    def start(self):
+    def start(self) -> None:
         """Start the navigation module."""
         if self.goal_reached:
             self.goal_reached.subscribe(self._on_goal_reached)
         logger.info("NavigationModule started")
 
-    def _on_goal_reached(self, msg: Bool):
+    def _on_goal_reached(self, msg: Bool) -> None:
         """Handle goal reached status messages."""
-        self.goal_reach = msg.data
+        self.goal_reach = msg.data  # type: ignore[assignment]
 
-    def _set_autonomy_mode(self):
+    def _set_autonomy_mode(self) -> None:
         """
         Set autonomy mode by publishing Joy message.
         """
@@ -94,8 +81,8 @@ class NavigationModule(Module):
         )
 
         if self.joy:
-            self.joy.publish(joy_msg)
-            logger.info(f"Setting autonomy mode via Joy message")
+            self.joy.publish(joy_msg)  # type: ignore[no-untyped-call]
+            logger.info("Setting autonomy mode via Joy message")
 
     @rpc
     def go_to(self, pose: PoseStamped, timeout: float = 60.0) -> bool:
@@ -116,9 +103,9 @@ class NavigationModule(Module):
 
         self.goal_reach = None
         self._set_autonomy_mode()
-        self.goal_pose.publish(pose)
+        self.goal_pose.publish(pose)  # type: ignore[no-untyped-call]
         time.sleep(0.2)
-        self.goal_pose.publish(pose)
+        self.goal_pose.publish(pose)  # type: ignore[no-untyped-call]
 
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -143,7 +130,7 @@ class NavigationModule(Module):
 
         if self.cancel_goal:
             cancel_msg = Bool(data=True)
-            self.cancel_goal.publish(cancel_msg)
+            self.cancel_goal.publish(cancel_msg)  # type: ignore[no-untyped-call]
             return True
 
         return False

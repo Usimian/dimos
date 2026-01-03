@@ -22,16 +22,14 @@ Uses standard Twist interface for velocity commands.
 
 import logging
 import os
-from typing import Optional
 
 from dimos import core
-from dimos.core.dimos import Dimos
+from dimos.core.module_coordinator import ModuleCoordinator
 from dimos.core.resource import Resource
-from dimos.msgs.geometry_msgs import TwistStamped, PoseStamped
+from dimos.msgs.geometry_msgs import PoseStamped, TwistStamped
 from dimos.msgs.nav_msgs.Odometry import Odometry
 from dimos.msgs.std_msgs import Int32
 from dimos.msgs.tf2_msgs.TFMessage import TFMessage
-from dimos.protocol.pubsub.lcmpubsub import LCM
 from dimos.robot.robot import Robot
 from dimos.robot.ros_bridge import BridgeDirection, ROSBridge
 from dimos.robot.unitree_webrtc.unitree_b1.connection import (
@@ -44,15 +42,15 @@ from dimos.utils.logging_config import setup_logger
 
 # Handle ROS imports for environments where ROS is not available like CI
 try:
-    from geometry_msgs.msg import TwistStamped as ROSTwistStamped
-    from nav_msgs.msg import Odometry as ROSOdometry
-    from tf2_msgs.msg import TFMessage as ROSTFMessage
+    from geometry_msgs.msg import TwistStamped as ROSTwistStamped  # type: ignore[attr-defined]
+    from nav_msgs.msg import Odometry as ROSOdometry  # type: ignore[attr-defined]
+    from tf2_msgs.msg import TFMessage as ROSTFMessage  # type: ignore[attr-defined]
 
     ROS_AVAILABLE = True
 except ImportError:
-    ROSTwistStamped = None
-    ROSOdometry = None
-    ROSTFMessage = None
+    ROSTwistStamped = None  # type: ignore[assignment, misc]
+    ROSOdometry = None  # type: ignore[assignment, misc]
+    ROSTFMessage = None  # type: ignore[assignment, misc]
     ROS_AVAILABLE = False
 
 logger = setup_logger("dimos.robot.unitree_webrtc.unitree_b1", level=logging.INFO)
@@ -71,12 +69,12 @@ class UnitreeB1(Robot, Resource):
         self,
         ip: str = "192.168.123.14",
         port: int = 9090,
-        output_dir: str = None,
-        skill_library: Optional[SkillLibrary] = None,
+        output_dir: str | None = None,
+        skill_library: SkillLibrary | None = None,
         enable_joystick: bool = False,
         enable_ros_bridge: bool = True,
         test_mode: bool = False,
-    ):
+    ) -> None:
         """Initialize the B1 robot.
 
         Args:
@@ -99,12 +97,12 @@ class UnitreeB1(Robot, Resource):
         self.connection = None
         self.joystick = None
         self.ros_bridge = None
-        self._dimos = Dimos(n=2)
+        self._dimos = ModuleCoordinator(n=2)
 
         os.makedirs(self.output_dir, exist_ok=True)
         logger.info(f"Robot outputs will be saved to: {self.output_dir}")
 
-    def start(self):
+    def start(self) -> None:
         """Start the B1 robot - initialize DimOS, deploy modules, and start them."""
 
         logger.info("Initializing DimOS...")
@@ -112,28 +110,28 @@ class UnitreeB1(Robot, Resource):
 
         logger.info("Deploying connection module...")
         if self.test_mode:
-            self.connection = self._dimos.deploy(MockB1ConnectionModule, self.ip, self.port)
+            self.connection = self._dimos.deploy(MockB1ConnectionModule, self.ip, self.port)  # type: ignore[assignment]
         else:
-            self.connection = self._dimos.deploy(B1ConnectionModule, self.ip, self.port)
+            self.connection = self._dimos.deploy(B1ConnectionModule, self.ip, self.port)  # type: ignore[assignment]
 
         # Configure LCM transports for connection (matching G1 pattern)
-        self.connection.cmd_vel.transport = core.LCMTransport("/cmd_vel", TwistStamped)
-        self.connection.mode_cmd.transport = core.LCMTransport("/b1/mode", Int32)
-        self.connection.odom_in.transport = core.LCMTransport("/state_estimation", Odometry)
-        self.connection.odom_pose.transport = core.LCMTransport("/odom", PoseStamped)
+        self.connection.cmd_vel.transport = core.LCMTransport("/cmd_vel", TwistStamped)  # type: ignore[attr-defined]
+        self.connection.mode_cmd.transport = core.LCMTransport("/b1/mode", Int32)  # type: ignore[attr-defined]
+        self.connection.odom_in.transport = core.LCMTransport("/state_estimation", Odometry)  # type: ignore[attr-defined]
+        self.connection.odom_pose.transport = core.LCMTransport("/odom", PoseStamped)  # type: ignore[attr-defined]
 
         # Deploy joystick move_vel control
         if self.enable_joystick:
             from dimos.robot.unitree_webrtc.unitree_b1.joystick_module import JoystickModule
 
-            self.joystick = self._dimos.deploy(JoystickModule)
-            self.joystick.twist_out.transport = core.LCMTransport("/cmd_vel", TwistStamped)
-            self.joystick.mode_out.transport = core.LCMTransport("/b1/mode", Int32)
+            self.joystick = self._dimos.deploy(JoystickModule)  # type: ignore[assignment]
+            self.joystick.twist_out.transport = core.LCMTransport("/cmd_vel", TwistStamped)  # type: ignore[attr-defined]
+            self.joystick.mode_out.transport = core.LCMTransport("/b1/mode", Int32)  # type: ignore[attr-defined]
             logger.info("Joystick module deployed - pygame window will open")
 
         self._dimos.start_all_modules()
 
-        self.connection.idle()  # Start in IDLE mode for safety
+        self.connection.idle()  # type: ignore[attr-defined]  # Start in IDLE mode for safety
         logger.info("B1 started in IDLE mode (safety)")
 
         # Deploy ROS bridge if enabled (matching G1 pattern)
@@ -151,31 +149,31 @@ class UnitreeB1(Robot, Resource):
         if self.ros_bridge:
             self.ros_bridge.stop()
 
-    def _deploy_ros_bridge(self):
+    def _deploy_ros_bridge(self) -> None:
         """Deploy and configure ROS bridge (matching G1 implementation)."""
-        self.ros_bridge = ROSBridge("b1_ros_bridge")
+        self.ros_bridge = ROSBridge("b1_ros_bridge")  # type: ignore[assignment]
 
         # Add /cmd_vel topic from ROS to DIMOS
-        self.ros_bridge.add_topic(
+        self.ros_bridge.add_topic(  # type: ignore[attr-defined]
             "/cmd_vel", TwistStamped, ROSTwistStamped, direction=BridgeDirection.ROS_TO_DIMOS
         )
 
         # Add /state_estimation topic from ROS to DIMOS (external odometry)
-        self.ros_bridge.add_topic(
+        self.ros_bridge.add_topic(  # type: ignore[attr-defined]
             "/state_estimation", Odometry, ROSOdometry, direction=BridgeDirection.ROS_TO_DIMOS
         )
 
         # Add /tf topic from ROS to DIMOS
-        self.ros_bridge.add_topic(
+        self.ros_bridge.add_topic(  # type: ignore[attr-defined]
             "/tf", TFMessage, ROSTFMessage, direction=BridgeDirection.ROS_TO_DIMOS
         )
 
-        self.ros_bridge.start()
+        self.ros_bridge.start()  # type: ignore[attr-defined]
 
         logger.info("ROS bridge deployed: /cmd_vel, /state_estimation, /tf (ROS → DIMOS)")
 
     # Robot control methods (standard interface)
-    def move(self, twist_stamped: TwistStamped, duration: float = 0.0):
+    def move(self, twist_stamped: TwistStamped, duration: float = 0.0) -> None:
         """Send movement command to robot using timestamped Twist.
 
         Args:
@@ -185,26 +183,26 @@ class UnitreeB1(Robot, Resource):
         if self.connection:
             self.connection.move(twist_stamped, duration)
 
-    def stand(self):
+    def stand(self) -> None:
         """Put robot in stand mode."""
         if self.connection:
             self.connection.stand()
             logger.info("B1 switched to STAND mode")
 
-    def walk(self):
+    def walk(self) -> None:
         """Put robot in walk mode."""
         if self.connection:
             self.connection.walk()
             logger.info("B1 switched to WALK mode")
 
-    def idle(self):
+    def idle(self) -> None:
         """Put robot in idle mode."""
         if self.connection:
             self.connection.idle()
             logger.info("B1 switched to IDLE mode")
 
 
-def main():
+def main() -> None:
     """Main entry point for testing B1 robot."""
     import argparse
 
@@ -223,7 +221,7 @@ def main():
 
     args = parser.parse_args()
 
-    robot = UnitreeB1(
+    robot = UnitreeB1(  # type: ignore[abstract]
         ip=args.ip,
         port=args.port,
         output_dir=args.output_dir,

@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+
+from reactivex.disposable import Disposable
 
 from dimos.core import In, Module, Out, rpc
 from dimos.msgs.geometry_msgs import Pose, PoseStamped
@@ -20,15 +21,15 @@ from dimos.msgs.nav_msgs import OccupancyGrid, Path
 from dimos.navigation.global_planner.algo import astar
 from dimos.utils.logging_config import setup_logger
 from dimos.utils.transform_utils import euler_to_quaternion
-from reactivex.disposable import Disposable
 
 logger = setup_logger(__file__)
 
 import math
+
 from dimos.msgs.geometry_msgs import Quaternion, Vector3
 
 
-def add_orientations_to_path(path: Path, goal_orientation: Quaternion = None) -> Path:
+def add_orientations_to_path(path: Path, goal_orientation: Quaternion = None) -> Path:  # type: ignore[assignment]
     """Add orientations to path poses based on direction of movement.
 
     Args:
@@ -141,22 +142,22 @@ def resample_path(path: Path, spacing: float) -> Path:
 
 class AstarPlanner(Module):
     # LCM inputs
-    target: In[PoseStamped] = None
-    global_costmap: In[OccupancyGrid] = None
-    odom: In[PoseStamped] = None
+    target: In[PoseStamped] = None  # type: ignore[assignment]
+    global_costmap: In[OccupancyGrid] = None  # type: ignore[assignment]
+    odom: In[PoseStamped] = None  # type: ignore[assignment]
 
     # LCM outputs
-    path: Out[Path] = None
+    path: Out[Path] = None  # type: ignore[assignment]
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         # Latest data
-        self.latest_costmap: Optional[OccupancyGrid] = None
-        self.latest_odom: Optional[PoseStamped] = None
+        self.latest_costmap: OccupancyGrid | None = None
+        self.latest_odom: PoseStamped | None = None
 
     @rpc
-    def start(self):
+    def start(self) -> None:
         super().start()
 
         unsub = self.target.subscribe(self._on_target)
@@ -174,15 +175,15 @@ class AstarPlanner(Module):
     def stop(self) -> None:
         super().stop()
 
-    def _on_costmap(self, msg: OccupancyGrid):
+    def _on_costmap(self, msg: OccupancyGrid) -> None:
         """Handle incoming costmap messages."""
         self.latest_costmap = msg
 
-    def _on_odom(self, msg: PoseStamped):
+    def _on_odom(self, msg: PoseStamped) -> None:
         """Handle incoming odometry messages."""
         self.latest_odom = msg
 
-    def _on_target(self, msg: PoseStamped):
+    def _on_target(self, msg: PoseStamped) -> None:
         """Handle incoming target messages and trigger planning."""
         if self.latest_costmap is None or self.latest_odom is None:
             logger.warning("Cannot plan: missing costmap or odometry data")
@@ -192,9 +193,9 @@ class AstarPlanner(Module):
         if path:
             # Add orientations to the path, using the goal's orientation for the final pose
             path = add_orientations_to_path(path, msg.orientation)
-            self.path.publish(path)
+            self.path.publish(path)  # type: ignore[no-untyped-call]
 
-    def plan(self, goal: Pose) -> Optional[Path]:
+    def plan(self, goal: Pose) -> Path | None:
         """Plan a path from current position to goal."""
         if self.latest_costmap is None or self.latest_odom is None:
             logger.warning("Cannot plan: missing costmap or odometry data")
@@ -216,3 +217,8 @@ class AstarPlanner(Module):
 
         logger.warning("No path found to the goal.")
         return None
+
+
+astar_planner = AstarPlanner.blueprint
+
+__all__ = ["AstarPlanner", "astar_planner"]

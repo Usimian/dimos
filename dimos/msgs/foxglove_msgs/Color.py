@@ -15,19 +15,21 @@
 from __future__ import annotations
 
 import hashlib
-from dimos_lcm.foxglove_msgs import Color as LCMColor
+
+from dimos_lcm.foxglove_msgs import Color as LCMColor  # type: ignore[import-untyped]
 
 
-class Color(LCMColor):
+class Color(LCMColor):  # type: ignore[misc]
     """Color with convenience methods."""
 
     @classmethod
-    def from_string(cls, name: str, alpha: float = 0.2) -> Color:
+    def from_string(cls, name: str, alpha: float = 0.2, brightness: float = 1.0) -> Color:
         """Generate a consistent color from a string using hash function.
 
         Args:
             name: String to generate color from
             alpha: Transparency value (0.0-1.0)
+            brightness: Brightness multiplier (0.0-2.0). Values > 1.0 lighten towards white.
 
         Returns:
             Color instance with deterministic RGB values
@@ -41,10 +43,23 @@ class Color(LCMColor):
         g = hash_bytes[1] / 255.0
         b = hash_bytes[2] / 255.0
 
+        # Apply brightness adjustment
+        # If brightness > 1.0, mix with white to lighten
+        if brightness > 1.0:
+            mix_factor = brightness - 1.0  # 0.0 to 1.0
+            r = r + (1.0 - r) * mix_factor
+            g = g + (1.0 - g) * mix_factor
+            b = b + (1.0 - b) * mix_factor
+        else:
+            # If brightness < 1.0, darken by scaling
+            r *= brightness
+            g *= brightness
+            b *= brightness
+
         # Create and return color instance
         color = cls()
-        color.r = r
-        color.g = g
-        color.b = b
+        color.r = min(1.0, r)
+        color.g = min(1.0, g)
+        color.b = min(1.0, b)
         color.a = alpha
         return color

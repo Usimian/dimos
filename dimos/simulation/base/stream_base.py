@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Literal, Optional, Union
 from pathlib import Path
 import subprocess
+from typing import Literal
 
 AnnotatorType = Literal["rgb", "normals", "bounding_box_3d", "motion_vectors"]
 TransportType = Literal["tcp", "udp"]
@@ -25,7 +25,7 @@ class StreamBase(ABC):
     """Base class for simulation streaming."""
 
     @abstractmethod
-    def __init__(
+    def __init__(  # type: ignore[no-untyped-def]
         self,
         simulator,
         width: int = 1920,
@@ -35,8 +35,8 @@ class StreamBase(ABC):
         annotator_type: AnnotatorType = "rgb",
         transport: TransportType = "tcp",
         rtsp_url: str = "rtsp://mediamtx:8554/stream",
-        usd_path: Optional[Union[str, Path]] = None,
-    ):
+        usd_path: str | Path | None = None,
+    ) -> None:
         """Initialize the stream.
 
         Args:
@@ -61,16 +61,16 @@ class StreamBase(ABC):
         self.proc = None
 
     @abstractmethod
-    def _load_stage(self, usd_path: Union[str, Path]):
+    def _load_stage(self, usd_path: str | Path):  # type: ignore[no-untyped-def]
         """Load stage from file."""
         pass
 
     @abstractmethod
-    def _setup_camera(self):
+    def _setup_camera(self):  # type: ignore[no-untyped-def]
         """Setup and validate camera."""
         pass
 
-    def _setup_ffmpeg(self):
+    def _setup_ffmpeg(self) -> None:
         """Setup FFmpeg process for streaming."""
         command = [
             "ffmpeg",
@@ -98,19 +98,19 @@ class StreamBase(ABC):
             self.transport,
             self.rtsp_url,
         ]
-        self.proc = subprocess.Popen(command, stdin=subprocess.PIPE)
+        self.proc = subprocess.Popen(command, stdin=subprocess.PIPE)  # type: ignore[assignment]
 
     @abstractmethod
-    def _setup_annotator(self):
+    def _setup_annotator(self):  # type: ignore[no-untyped-def]
         """Setup annotator."""
         pass
 
     @abstractmethod
-    def stream(self):
+    def stream(self):  # type: ignore[no-untyped-def]
         """Start streaming."""
         pass
 
     @abstractmethod
-    def cleanup(self):
+    def cleanup(self):  # type: ignore[no-untyped-def]
         """Cleanup resources."""
         pass

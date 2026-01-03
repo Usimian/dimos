@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import json
-import uuid
-import string
 import hashlib
-from typing import Any, Optional
+import json
+import os
+import string
+from typing import Any
+import uuid
 
 
-def truncate_display_string(arg: Any, max: Optional[int] = None) -> str:
+def truncate_display_string(arg: Any, max: int | None = None) -> str:
     """
     If we print strings that are too long that potentially obscures more important logs.
 
@@ -63,9 +63,16 @@ def short_id(from_string: str | None = None) -> str:
         hash_bytes = hashlib.sha1(from_string.encode()).digest()[:16]
         num = int.from_bytes(hash_bytes, "big")
 
-    chars = []
-    while num:
+    min_chars = 18
+
+    chars: list[str] = []
+    while num > 0 or len(chars) < min_chars:
         num, rem = divmod(num, base)
         chars.append(alphabet[rem])
 
-    return "".join(reversed(chars))[:18]
+    return "".join(reversed(chars))[:min_chars]
+
+
+class classproperty(property):
+    def __get__(self, obj, cls):  # type: ignore[no-untyped-def, override]
+        return self.fget(cls)  # type: ignore[misc]

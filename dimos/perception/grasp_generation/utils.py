@@ -14,18 +14,18 @@
 
 """Utilities for grasp generation and visualization."""
 
-import numpy as np
-import open3d as o3d
 import cv2
-from typing import List, Dict, Tuple, Optional, Union
-from dimos.perception.common.utils import project_3d_points_to_2d, project_2d_points_to_3d
+import numpy as np
+import open3d as o3d  # type: ignore[import-untyped]
+
+from dimos.perception.common.utils import project_3d_points_to_2d
 
 
 def create_gripper_geometry(
-    grasp_data: dict,
+    grasp_data: dict,  # type: ignore[type-arg]
     finger_length: float = 0.08,
     finger_thickness: float = 0.004,
-) -> List[o3d.geometry.TriangleMesh]:
+) -> list[o3d.geometry.TriangleMesh]:
     """
     Create a simple fork-like gripper geometry from grasp data.
 
@@ -146,8 +146,9 @@ def create_gripper_geometry(
 
 
 def create_all_gripper_geometries(
-    grasp_list: List[dict], max_grasps: int = -1
-) -> List[o3d.geometry.TriangleMesh]:
+    grasp_list: list[dict],  # type: ignore[type-arg]
+    max_grasps: int = -1,
+) -> list[o3d.geometry.TriangleMesh]:
     """
     Create gripper geometries for multiple grasps.
 
@@ -170,13 +171,13 @@ def create_all_gripper_geometries(
 
 
 def draw_grasps_on_image(
-    image: np.ndarray,
-    grasp_data: Union[dict, Dict[Union[int, str], List[dict]], List[dict]],
-    camera_intrinsics: Union[List[float], np.ndarray],  # [fx, fy, cx, cy] or 3x3 matrix
+    image: np.ndarray,  # type: ignore[type-arg]
+    grasp_data: dict | dict[int | str, list[dict]] | list[dict],  # type: ignore[type-arg]
+    camera_intrinsics: list[float] | np.ndarray,  # type: ignore[type-arg]  # [fx, fy, cx, cy] or 3x3 matrix
     max_grasps: int = -1,  # -1 means show all grasps
     finger_length: float = 0.08,  # Match 3D gripper
     finger_thickness: float = 0.004,  # Match 3D gripper
-) -> np.ndarray:
+) -> np.ndarray:  # type: ignore[type-arg]
     """
     Draw fork-like gripper visualizations on the image matching 3D gripper design.
 
@@ -215,7 +216,7 @@ def draw_grasps_on_image(
     else:
         # Dictionary of grasps by object ID
         grasps_to_draw = []
-        for obj_id, grasps in grasp_data.items():
+        for _obj_id, grasps in grasp_data.items():
             for i, grasp in enumerate(grasps):
                 grasps_to_draw.append((grasp, i))
 
@@ -224,7 +225,7 @@ def draw_grasps_on_image(
         grasps_to_draw = grasps_to_draw[:max_grasps]
 
     # Define grasp colors (solid red to match 3D design)
-    def get_grasp_color(index: int) -> tuple:
+    def get_grasp_color(index: int) -> tuple:  # type: ignore[type-arg]
         # Use solid red color for all grasps to match 3D design
         return (0, 0, 255)  # Red in BGR format for OpenCV
 
@@ -256,22 +257,22 @@ def draw_grasps_on_image(
             left_finger_points = np.array(
                 [
                     [
-                        width / 2 - finger_width / 2,
+                        width / 2 - finger_width / 2,  # type: ignore[operator]
                         -finger_length,
                         -finger_thickness / 2,
                     ],  # Back left
                     [
-                        width / 2 + finger_width / 2,
+                        width / 2 + finger_width / 2,  # type: ignore[operator]
                         -finger_length,
                         -finger_thickness / 2,
                     ],  # Back right
                     [
-                        width / 2 + finger_width / 2,
+                        width / 2 + finger_width / 2,  # type: ignore[operator]
                         0,
                         -finger_thickness / 2,
                     ],  # Front right (at origin)
                     [
-                        width / 2 - finger_width / 2,
+                        width / 2 - finger_width / 2,  # type: ignore[operator]
                         0,
                         -finger_thickness / 2,
                     ],  # Front left (at origin)
@@ -282,22 +283,22 @@ def draw_grasps_on_image(
             right_finger_points = np.array(
                 [
                     [
-                        -width / 2 - finger_width / 2,
+                        -width / 2 - finger_width / 2,  # type: ignore[operator]
                         -finger_length,
                         -finger_thickness / 2,
                     ],  # Back left
                     [
-                        -width / 2 + finger_width / 2,
+                        -width / 2 + finger_width / 2,  # type: ignore[operator]
                         -finger_length,
                         -finger_thickness / 2,
                     ],  # Back right
                     [
-                        -width / 2 + finger_width / 2,
+                        -width / 2 + finger_width / 2,  # type: ignore[operator]
                         0,
                         -finger_thickness / 2,
                     ],  # Front right (at origin)
                     [
-                        -width / 2 - finger_width / 2,
+                        -width / 2 - finger_width / 2,  # type: ignore[operator]
                         0,
                         -finger_thickness / 2,
                     ],  # Front left (at origin)
@@ -308,22 +309,22 @@ def draw_grasps_on_image(
             base_points = np.array(
                 [
                     [
-                        -width / 2 - finger_width / 2,
+                        -width / 2 - finger_width / 2,  # type: ignore[operator]
                         -finger_length - finger_thickness,
                         -finger_thickness / 2,
                     ],  # Back left
                     [
-                        width / 2 + finger_width / 2,
+                        width / 2 + finger_width / 2,  # type: ignore[operator]
                         -finger_length - finger_thickness,
                         -finger_thickness / 2,
                     ],  # Back right
                     [
-                        width / 2 + finger_width / 2,
+                        width / 2 + finger_width / 2,  # type: ignore[operator]
                         -finger_length,
                         -finger_thickness / 2,
                     ],  # Front right
                     [
-                        -width / 2 - finger_width / 2,
+                        -width / 2 - finger_width / 2,  # type: ignore[operator]
                         -finger_length,
                         -finger_thickness / 2,
                     ],  # Front left
@@ -357,15 +358,15 @@ def draw_grasps_on_image(
             )
 
             # Transform all points to world frame
-            def transform_points(points):
+            def transform_points(points):  # type: ignore[no-untyped-def]
                 # Apply rotation and translation
                 world_points = (rotation_matrix @ points.T).T + translation
                 return world_points
 
-            left_finger_world = transform_points(left_finger_points)
-            right_finger_world = transform_points(right_finger_points)
-            base_world = transform_points(base_points)
-            handle_world = transform_points(handle_points)
+            left_finger_world = transform_points(left_finger_points)  # type: ignore[no-untyped-call]
+            right_finger_world = transform_points(right_finger_points)  # type: ignore[no-untyped-call]
+            base_world = transform_points(base_points)  # type: ignore[no-untyped-call]
+            handle_world = transform_points(handle_points)  # type: ignore[no-untyped-call]
 
             # Project to 2D
             left_finger_2d = project_3d_points_to_2d(left_finger_world, camera_matrix)
@@ -393,14 +394,14 @@ def draw_grasps_on_image(
             center_2d = project_3d_points_to_2d(translation.reshape(1, -1), camera_matrix)[0]
             cv2.circle(result, tuple(center_2d.astype(int)), 3, color, -1)
 
-        except Exception as e:
+        except Exception:
             # Skip this grasp if there's an error
             continue
 
     return result
 
 
-def get_standard_coordinate_transform():
+def get_standard_coordinate_transform():  # type: ignore[no-untyped-def]
     """
     Get a standard coordinate transformation matrix for consistent visualization.
 
@@ -426,9 +427,9 @@ def get_standard_coordinate_transform():
 
 def visualize_grasps_3d(
     point_cloud: o3d.geometry.PointCloud,
-    grasp_list: List[dict],
+    grasp_list: list[dict],  # type: ignore[type-arg]
     max_grasps: int = -1,
-):
+) -> None:
     """
     Visualize grasps in 3D with point cloud.
 
@@ -438,7 +439,7 @@ def visualize_grasps_3d(
         max_grasps: Maximum number of grasps to visualize
     """
     # Apply standard coordinate transformation
-    transform = get_standard_coordinate_transform()
+    transform = get_standard_coordinate_transform()  # type: ignore[no-untyped-call]
 
     # Transform point cloud
     pc_copy = o3d.geometry.PointCloud(point_cloud)
@@ -459,7 +460,7 @@ def visualize_grasps_3d(
     o3d.visualization.draw_geometries(geometries, window_name="3D Grasp Visualization")
 
 
-def parse_grasp_results(grasps: List[Dict]) -> List[Dict]:
+def parse_grasp_results(grasps: list[dict]) -> list[dict]:  # type: ignore[type-arg]
     """
     Parse grasp results into visualization format.
 
@@ -499,10 +500,10 @@ def parse_grasp_results(grasps: List[Dict]) -> List[Dict]:
 
 
 def create_grasp_overlay(
-    rgb_image: np.ndarray,
-    grasps: List[Dict],
-    camera_intrinsics: Union[List[float], np.ndarray],
-) -> np.ndarray:
+    rgb_image: np.ndarray,  # type: ignore[type-arg]
+    grasps: list[dict],  # type: ignore[type-arg]
+    camera_intrinsics: list[float] | np.ndarray,  # type: ignore[type-arg]
+) -> np.ndarray:  # type: ignore[type-arg]
     """
     Create grasp visualization overlay on RGB image.
 
@@ -524,5 +525,5 @@ def create_grasp_overlay(
             max_grasps=-1,
         )
         return cv2.cvtColor(result_bgr, cv2.COLOR_BGR2RGB)
-    except Exception as e:
+    except Exception:
         return rgb_image.copy()

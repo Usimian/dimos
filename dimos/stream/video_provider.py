@@ -20,12 +20,11 @@ frame rate control, and thread safety.
 """
 
 # Standard library imports
+from abc import ABC, abstractmethod
 import logging
 import os
-import time
-from abc import ABC, abstractmethod
 from threading import Lock
-from typing import Optional
+import time
 
 # Third-party imports
 import cv2
@@ -60,7 +59,7 @@ class AbstractVideoProvider(ABC):
     """Abstract base class for video providers managing video capture resources."""
 
     def __init__(
-        self, dev_name: str = "NA", pool_scheduler: Optional[ThreadPoolScheduler] = None
+        self, dev_name: str = "NA", pool_scheduler: ThreadPoolScheduler | None = None
     ) -> None:
         """Initializes the video provider with a device name.
 
@@ -74,7 +73,7 @@ class AbstractVideoProvider(ABC):
         self.disposables = CompositeDisposable()
 
     @abstractmethod
-    def capture_video_as_observable(self, fps: int = 30) -> Observable:
+    def capture_video_as_observable(self, fps: int = 30) -> Observable:  # type: ignore[type-arg]
         """Create an observable from video capture.
 
         Args:
@@ -108,7 +107,7 @@ class VideoProvider(AbstractVideoProvider):
         self,
         dev_name: str,
         video_source: str = f"{os.getcwd()}/assets/video-f30-480p.mp4",
-        pool_scheduler: Optional[ThreadPoolScheduler] = None,
+        pool_scheduler: ThreadPoolScheduler | None = None,
     ) -> None:
         """Initializes the video provider with a device name and video source.
 
@@ -136,7 +135,7 @@ class VideoProvider(AbstractVideoProvider):
                 logger.info("Released previous capture")
 
             # Attempt to open new capture
-            self.cap = cv2.VideoCapture(self.video_source)
+            self.cap = cv2.VideoCapture(self.video_source)  # type: ignore[assignment]
             if self.cap is None or not self.cap.isOpened():
                 error_msg = f"Failed to open video source: {self.video_source}"
                 logger.error(error_msg)
@@ -144,7 +143,7 @@ class VideoProvider(AbstractVideoProvider):
 
             logger.info(f"Opened new capture: {self.video_source}")
 
-    def capture_video_as_observable(self, realtime: bool = True, fps: int = 30) -> Observable:
+    def capture_video_as_observable(self, realtime: bool = True, fps: int = 30) -> Observable:  # type: ignore[override, type-arg]
         """Creates an observable from video capture.
 
         Creates an observable that emits frames at specified FPS or the video's
@@ -163,14 +162,14 @@ class VideoProvider(AbstractVideoProvider):
             VideoFrameError: If frames cannot be read properly.
         """
 
-        def emit_frames(observer, scheduler):
+        def emit_frames(observer, scheduler) -> None:  # type: ignore[no-untyped-def]
             try:
                 self._initialize_capture()
 
                 # Determine the FPS to use based on configuration and availability
                 local_fps: float = fps
                 if realtime:
-                    native_fps: float = self.cap.get(cv2.CAP_PROP_FPS)
+                    native_fps: float = self.cap.get(cv2.CAP_PROP_FPS)  # type: ignore[attr-defined]
                     if native_fps > 0:
                         local_fps = native_fps
                     else:
@@ -179,16 +178,16 @@ class VideoProvider(AbstractVideoProvider):
                 frame_interval: float = 1.0 / local_fps
                 frame_time: float = time.monotonic()
 
-                while self.cap.isOpened():
+                while self.cap.isOpened():  # type: ignore[attr-defined]
                     # Thread-safe access to video capture
                     with self.lock:
-                        ret, frame = self.cap.read()
+                        ret, frame = self.cap.read()  # type: ignore[attr-defined]
 
                     if not ret:
                         # Loop video when we reach the end
                         logger.warning("End of video reached, restarting playback")
                         with self.lock:
-                            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # type: ignore[attr-defined]
                         continue
 
                     # Control frame rate to match target FPS
@@ -216,7 +215,7 @@ class VideoProvider(AbstractVideoProvider):
                         logger.info("Capture released")
                 observer.on_completed()
 
-        return rx.create(emit_frames).pipe(
+        return rx.create(emit_frames).pipe(  # type: ignore[arg-type]
             ops.subscribe_on(self.pool_scheduler),
             ops.observe_on(self.pool_scheduler),
             ops.share(),  # Share the stream among multiple subscribers

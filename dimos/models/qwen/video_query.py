@@ -1,8 +1,9 @@
 """Utility functions for one-off video frame queries using Qwen model."""
 
+import json
 import os
+
 import numpy as np
-from typing import Optional, Tuple
 from openai import OpenAI
 from reactivex import Observable, operators as ops
 from reactivex.subject import Subject
@@ -10,17 +11,16 @@ from reactivex.subject import Subject
 from dimos.agents.agent import OpenAIAgent
 from dimos.agents.tokenizer.huggingface_tokenizer import HuggingFaceTokenizer
 from dimos.utils.threadpool import get_scheduler
-import json
 
-BBox = Tuple[float, float, float, float]  # (x1, y1, x2, y2)
+BBox = tuple[float, float, float, float]  # (x1, y1, x2, y2)
 
 
 def query_single_frame_observable(
-    video_observable: Observable,
+    video_observable: Observable,  # type: ignore[type-arg]
     query: str,
-    api_key: Optional[str] = None,
+    api_key: str | None = None,
     model_name: str = "qwen2.5-vl-72b-instruct",
-) -> Observable:
+) -> Observable:  # type: ignore[type-arg]
     """Process a single frame from a video observable with Qwen model.
 
     Args:
@@ -54,7 +54,7 @@ def query_single_frame_observable(
     )
 
     # Create response subject
-    response_subject = Subject()
+    response_subject = Subject()  # type: ignore[var-annotated]
 
     # Create temporary agent for processing
     agent = OpenAIAgent(
@@ -87,9 +87,9 @@ def query_single_frame_observable(
 
 
 def query_single_frame(
-    image: np.ndarray,
+    image: np.ndarray,  # type: ignore[type-arg]
     query: str = "Return the center coordinates of the fridge handle as a tuple (x,y)",
-    api_key: Optional[str] = None,
+    api_key: str | None = None,
     model_name: str = "qwen2.5-vl-72b-instruct",
 ) -> str:
     """Process a single numpy image array with Qwen model.
@@ -140,7 +140,7 @@ def query_single_frame(
     frame = image
 
     # Create a Subject that will emit the image once
-    frame_subject = Subject()
+    frame_subject = Subject()  # type: ignore[var-annotated]
 
     # Subscribe to frame processing
     agent.subscribe_to_image_processing(frame_subject)
@@ -158,12 +158,12 @@ def query_single_frame(
     # Clean up
     agent.dispose_all()
 
-    return response
+    return response  # type: ignore[no-any-return]
 
 
 def get_bbox_from_qwen(
-    video_stream: Observable, object_name: Optional[str] = None
-) -> Optional[Tuple[BBox, float]]:
+    video_stream: Observable, object_name: str | None = None  # type: ignore[type-arg]
+) -> tuple[BBox, float] | None:
     """Get bounding box coordinates from Qwen for a specific object or any object.
 
     Args:
@@ -201,7 +201,7 @@ def get_bbox_from_qwen(
     return None
 
 
-def get_bbox_from_qwen_frame(frame, object_name: Optional[str] = None) -> Optional[BBox]:
+def get_bbox_from_qwen_frame(frame, object_name: str | None = None) -> BBox | None:  # type: ignore[no-untyped-def]
     """Get bounding box coordinates from Qwen for a specific object or any object using a single frame.
 
     Args:

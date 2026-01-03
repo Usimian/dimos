@@ -14,15 +14,12 @@
 
 # frame_ipc.py
 # Python 3.9+
-import base64
-import time
 from abc import ABC, abstractmethod
+from multiprocessing.shared_memory import SharedMemory
 import os
-from typing import Optional, Tuple
+import time
 
 import numpy as np
-from multiprocessing.shared_memory import SharedMemory
-from multiprocessing.managers import SharedMemoryManager
 
 _UNLINK_ON_GC = os.getenv("DIMOS_IPC_UNLINK_ON_GC", "0").lower() not in ("0", "false", "no")
 
@@ -65,30 +62,30 @@ class FrameChannel(ABC):
 
     @property
     @abstractmethod
-    def shape(self) -> tuple: ...
+    def shape(self) -> tuple: ...  # type: ignore[type-arg]
 
     @property
     @abstractmethod
-    def dtype(self) -> np.dtype: ...
+    def dtype(self) -> np.dtype: ...  # type: ignore[type-arg]
 
     @abstractmethod
-    def publish(self, frame) -> None:
+    def publish(self, frame) -> None:  # type: ignore[no-untyped-def]
         """Write into inactive buffer, then flip visible index (write control last)."""
         ...
 
     @abstractmethod
-    def read(self, last_seq: int = -1, require_new: bool = True):
+    def read(self, last_seq: int = -1, require_new: bool = True):  # type: ignore[no-untyped-def]
         """Return (seq:int, ts_ns:int, view-or-None)."""
         ...
 
     @abstractmethod
-    def descriptor(self) -> dict:
+    def descriptor(self) -> dict:  # type: ignore[type-arg]
         """Tiny JSON-safe descriptor (names/handles/shape/dtype/device)."""
         ...
 
     @classmethod
     @abstractmethod
-    def attach(cls, desc: dict) -> "FrameChannel":
+    def attach(cls, desc: dict) -> "FrameChannel":  # type: ignore[type-arg]
         """Attach in another process."""
         ...
 
@@ -99,10 +96,11 @@ class FrameChannel(ABC):
 
 
 from multiprocessing.shared_memory import SharedMemory
-import weakref, os
+import os
+import weakref
 
 
-def _safe_unlink(name):
+def _safe_unlink(name: str) -> None:
     try:
         shm = SharedMemory(name=name)
         shm.unlink()
@@ -118,12 +116,19 @@ def _safe_unlink(name):
 
 
 class CpuShmChannel(FrameChannel):
-    def __init__(self, shape, dtype=np.uint8, *, data_name=None, ctrl_name=None):
+    def __init__(  # type: ignore[no-untyped-def]
+        self,
+        shape,
+        dtype=np.uint8,
+        *,
+        data_name: str | None = None,
+        ctrl_name: str | None = None,
+    ) -> None:
         self._shape = tuple(shape)
         self._dtype = np.dtype(dtype)
         self._nbytes = int(self._dtype.itemsize * np.prod(self._shape))
 
-        def _create_or_open(name, size):
+        def _create_or_open(name: str, size: int):  # type: ignore[no-untyped-def]
             try:
                 shm = SharedMemory(create=True, size=size, name=name)
                 owner = True
@@ -142,7 +147,7 @@ class CpuShmChannel(FrameChannel):
             self._shm_ctrl, own_c = _create_or_open(ctrl_name, 24)
             self._is_owner = own_d and own_c
 
-        self._ctrl = np.ndarray((3,), dtype=np.int64, buffer=self._shm_ctrl.buf)
+        self._ctrl = np.ndarray((3,), dtype=np.int64, buffer=self._shm_ctrl.buf)  # type: ignore[var-annotated]
         if self._is_owner:
             self._ctrl[:] = 0  # initialize only once
 
@@ -158,7 +163,7 @@ class CpuShmChannel(FrameChannel):
             else None
         )
 
-    def descriptor(self):
+    def descriptor(self):  # type: ignore[no-untyped-def]
         return {
             "kind": "cpu",
             "shape": self._shape,
@@ -169,23 +174,23 @@ class CpuShmChannel(FrameChannel):
         }
 
     @property
-    def device(self):
+    def device(self) -> str:
         return "cpu"
 
     @property
-    def shape(self):
+    def shape(self):  # type: ignore[no-untyped-def]
         return self._shape
 
     @property
-    def dtype(self):
+    def dtype(self):  # type: ignore[no-untyped-def]
         return self._dtype
 
-    def publish(self, frame):
+    def publish(self, frame) -> None:  # type: ignore[no-untyped-def]
         assert isinstance(frame, np.ndarray)
         assert frame.shape == self._shape and frame.dtype == self._dtype
         active = int(self._ctrl[2])
         inactive = 1 - active
-        view = np.ndarray(
+        view = np.ndarray(  # type: ignore[var-annotated]
             self._shape,
             dtype=self._dtype,
             buffer=self._shm_data.buf,
@@ -198,12 +203,12 @@ class CpuShmChannel(FrameChannel):
         self._ctrl[2] = inactive
         self._ctrl[0] += 1
 
-    def read(self, last_seq: int = -1, require_new=True):
+    def read(self, last_seq: int = -1, require_new: bool = True):  # type: ignore[no-untyped-def]
         for _ in range(3):
             seq1 = int(self._ctrl[0])
             idx = int(self._ctrl[2])
             ts = int(self._ctrl[1])
-            view = np.ndarray(
+            view = np.ndarray(  # type: ignore[var-annotated]
                 self._shape, dtype=self._dtype, buffer=self._shm_data.buf, offset=idx * self._nbytes
             )
             if seq1 == int(self._ctrl[0]):
@@ -212,7 +217,7 @@ class CpuShmChannel(FrameChannel):
                 return seq1, ts, view
         return last_seq, 0, None
 
-    def descriptor(self):
+    def descriptor(self):  # type: ignore[no-redef, no-untyped-def]
         return {
             "kind": "cpu",
             "shape": self._shape,
@@ -223,13 +228,13 @@ class CpuShmChannel(FrameChannel):
         }
 
     @classmethod
-    def attach(cls, desc):
+    def attach(cls, desc: str):  # type: ignore[no-untyped-def, override]
         obj = object.__new__(cls)
-        obj._shape = tuple(desc["shape"])
-        obj._dtype = np.dtype(desc["dtype"])
-        obj._nbytes = int(desc["nbytes"])
-        data_name = desc["data_name"]
-        ctrl_name = desc["ctrl_name"]
+        obj._shape = tuple(desc["shape"])  # type: ignore[index]
+        obj._dtype = np.dtype(desc["dtype"])  # type: ignore[index]
+        obj._nbytes = int(desc["nbytes"])  # type: ignore[index]
+        data_name = desc["data_name"]  # type: ignore[index]
+        ctrl_name = desc["ctrl_name"]  # type: ignore[index]
         try:
             obj._shm_data = _open_shm_with_retry(data_name)
             obj._shm_ctrl = _open_shm_with_retry(ctrl_name)
@@ -244,7 +249,7 @@ class CpuShmChannel(FrameChannel):
         obj._finalizer_data = obj._finalizer_ctrl = None
         return obj
 
-    def close(self):
+    def close(self) -> None:
         if getattr(self, "_is_owner", False):
             try:
                 self._shm_ctrl.close()
@@ -282,13 +287,13 @@ class CPU_IPC_Factory:
     """Creates/attaches CPU shared-memory channels."""
 
     @staticmethod
-    def create(shape, dtype=np.uint8) -> CpuShmChannel:
+    def create(shape, dtype=np.uint8) -> CpuShmChannel:  # type: ignore[no-untyped-def]
         return CpuShmChannel(shape, dtype=dtype)
 
     @staticmethod
-    def attach(desc: dict) -> CpuShmChannel:
+    def attach(desc: dict) -> CpuShmChannel:  # type: ignore[type-arg]
         assert desc.get("kind") == "cpu", "Descriptor kind mismatch"
-        return CpuShmChannel.attach(desc)
+        return CpuShmChannel.attach(desc)  # type: ignore[arg-type, no-any-return]
 
 
 # ---------------------------
@@ -296,7 +301,7 @@ class CPU_IPC_Factory:
 # ---------------------------
 
 
-def make_frame_channel(
+def make_frame_channel(  # type: ignore[no-untyped-def]
     shape, dtype=np.uint8, prefer: str = "auto", device: int = 0
 ) -> FrameChannel:
     """Choose CUDA IPC if available (or requested), otherwise CPU SHM."""

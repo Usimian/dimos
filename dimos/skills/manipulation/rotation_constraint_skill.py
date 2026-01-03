@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Dict, Any, Optional, Tuple, Literal
+from typing import Literal
+
 from pydantic import Field
 
 from dimos.skills.manipulation.abstract_manipulation_skill import AbstractManipulationSkill
 from dimos.types.manipulation import RotationConstraint
-from dimos.utils.logging_config import setup_logger
 from dimos.types.vector import Vector
+from dimos.utils.logging_config import setup_logger
 
 # Initialize logger
 logger = setup_logger("dimos.skills.rotation_constraint_skill")
@@ -39,16 +40,16 @@ class RotationConstraintSkill(AbstractManipulationSkill):
     )
 
     # Simple angle values for rotation (in degrees)
-    start_angle: Optional[float] = Field(None, description="Starting angle in degrees")
-    end_angle: Optional[float] = Field(None, description="Ending angle in degrees")
+    start_angle: float | None = Field(None, description="Starting angle in degrees")
+    end_angle: float | None = Field(None, description="Ending angle in degrees")
 
     # Pivot points as (x,y) tuples
-    pivot_point: Optional[Tuple[float, float]] = Field(
+    pivot_point: tuple[float, float] | None = Field(
         None, description="Pivot point (x,y) for rotation"
     )
 
     # TODO: Secondary pivot point for more complex rotations
-    secondary_pivot_point: Optional[Tuple[float, float]] = Field(
+    secondary_pivot_point: tuple[float, float] | None = Field(
         None, description="Secondary pivot point (x,y) for double-pivot rotation"
     )
 
@@ -70,25 +71,27 @@ class RotationConstraintSkill(AbstractManipulationSkill):
             values = [0.0, 0.0, 0.0]
             axis_index = {"roll": 0, "pitch": 1, "yaw": 2}[self.rotation_axis]
             values[axis_index] = self.start_angle
-            start_angle_vector = Vector(*values)
+            start_angle_vector = Vector(*values)  # type: ignore[arg-type]
 
         end_angle_vector = None
         if self.end_angle is not None:
             values = [0.0, 0.0, 0.0]
             axis_index = {"roll": 0, "pitch": 1, "yaw": 2}[self.rotation_axis]
             values[axis_index] = self.end_angle
-            end_angle_vector = Vector(*values)
+            end_angle_vector = Vector(*values)  # type: ignore[arg-type]
 
         # Create pivot point vector if provided (convert 2D point to 3D vector with z=0)
         pivot_point_vector = None
         if self.pivot_point:
-            pivot_point_vector = Vector(self.pivot_point[0], self.pivot_point[1], 0.0)
+            pivot_point_vector = Vector(self.pivot_point[0], self.pivot_point[1], 0.0)  # type: ignore[arg-type]
 
         # Create secondary pivot point vector if provided
         secondary_pivot_vector = None
         if self.secondary_pivot_point:
             secondary_pivot_vector = Vector(
-                self.secondary_pivot_point[0], self.secondary_pivot_point[1], 0.0
+                self.secondary_pivot_point[0],  # type: ignore[arg-type]
+                self.secondary_pivot_point[1],  # type: ignore[arg-type]
+                0.0,  # type: ignore[arg-type]
             )
 
         constraint = RotationConstraint(
@@ -100,7 +103,7 @@ class RotationConstraintSkill(AbstractManipulationSkill):
         )
 
         # Add constraint to manipulation interface
-        self.manipulation_interface.add_constraint(constraint)
+        self.manipulation_interface.add_constraint(constraint)  # type: ignore[union-attr]
 
         # Log the constraint creation
         logger.info(f"Generated rotation constraint around {self.rotation_axis} axis")

@@ -13,22 +13,20 @@
 # limitations under the License.
 
 import asyncio
-import logging
-from typing import Optional, List
+
+# Import LCM message types
+from dimos_lcm.sensor_msgs import CameraInfo  # type: ignore[import-untyped]
 
 from dimos import core
 from dimos.hardware.camera.zed import ZEDModule
 from dimos.manipulation.visual_servoing.manipulation_module import ManipulationModule
 from dimos.msgs.sensor_msgs import Image
 from dimos.protocol import pubsub
+from dimos.robot.foxglove_bridge import FoxgloveBridge
+from dimos.robot.robot import Robot
 from dimos.skills.skills import SkillLibrary
 from dimos.types.robot_capabilities import RobotCapability
-from dimos.robot.foxglove_bridge import FoxgloveBridge
 from dimos.utils.logging_config import setup_logger
-from dimos.robot.robot import Robot
-
-# Import LCM message types
-from dimos_lcm.sensor_msgs import CameraInfo
 
 logger = setup_logger("dimos.robot.agilex.piper_arm")
 
@@ -36,12 +34,12 @@ logger = setup_logger("dimos.robot.agilex.piper_arm")
 class PiperArmRobot(Robot):
     """Piper Arm robot with ZED camera and manipulation capabilities."""
 
-    def __init__(self, robot_capabilities: Optional[List[RobotCapability]] = None):
+    def __init__(self, robot_capabilities: list[RobotCapability] | None = None) -> None:
         super().__init__()
         self.dimos = None
         self.stereo_camera = None
         self.manipulation_interface = None
-        self.skill_library = SkillLibrary()
+        self.skill_library = SkillLibrary()  # type: ignore[assignment]
 
         # Initialize capabilities
         self.capabilities = robot_capabilities or [
@@ -49,18 +47,18 @@ class PiperArmRobot(Robot):
             RobotCapability.MANIPULATION,
         ]
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the robot modules."""
         # Start Dimos
-        self.dimos = core.start(2)  # Need 2 workers for ZED and manipulation modules
+        self.dimos = core.start(2)  # type: ignore[assignment]  # Need 2 workers for ZED and manipulation modules
         self.foxglove_bridge = FoxgloveBridge()
 
         # Enable LCM auto-configuration
-        pubsub.lcm.autoconf()
+        pubsub.lcm.autoconf()  # type: ignore[attr-defined]
 
         # Deploy ZED module
         logger.info("Deploying ZED module...")
-        self.stereo_camera = self.dimos.deploy(
+        self.stereo_camera = self.dimos.deploy(  # type: ignore[attr-defined]
             ZEDModule,
             camera_id=0,
             resolution="HD720",
@@ -72,44 +70,44 @@ class PiperArmRobot(Robot):
         )
 
         # Configure ZED LCM transports
-        self.stereo_camera.color_image.transport = core.LCMTransport("/zed/color_image", Image)
-        self.stereo_camera.depth_image.transport = core.LCMTransport("/zed/depth_image", Image)
-        self.stereo_camera.camera_info.transport = core.LCMTransport("/zed/camera_info", CameraInfo)
+        self.stereo_camera.color_image.transport = core.LCMTransport("/zed/color_image", Image)  # type: ignore[attr-defined]
+        self.stereo_camera.depth_image.transport = core.LCMTransport("/zed/depth_image", Image)  # type: ignore[attr-defined]
+        self.stereo_camera.camera_info.transport = core.LCMTransport("/zed/camera_info", CameraInfo)  # type: ignore[attr-defined]
 
         # Deploy manipulation module
         logger.info("Deploying manipulation module...")
-        self.manipulation_interface = self.dimos.deploy(ManipulationModule)
+        self.manipulation_interface = self.dimos.deploy(ManipulationModule)  # type: ignore[attr-defined]
 
         # Connect manipulation inputs to ZED outputs
-        self.manipulation_interface.rgb_image.connect(self.stereo_camera.color_image)
-        self.manipulation_interface.depth_image.connect(self.stereo_camera.depth_image)
-        self.manipulation_interface.camera_info.connect(self.stereo_camera.camera_info)
+        self.manipulation_interface.rgb_image.connect(self.stereo_camera.color_image)  # type: ignore[attr-defined]
+        self.manipulation_interface.depth_image.connect(self.stereo_camera.depth_image)  # type: ignore[attr-defined]
+        self.manipulation_interface.camera_info.connect(self.stereo_camera.camera_info)  # type: ignore[attr-defined]
 
         # Configure manipulation output
-        self.manipulation_interface.viz_image.transport = core.LCMTransport(
+        self.manipulation_interface.viz_image.transport = core.LCMTransport(  # type: ignore[attr-defined]
             "/manipulation/viz", Image
         )
 
         # Print module info
         logger.info("Modules configured:")
         print("\nZED Module:")
-        print(self.stereo_camera.io())
+        print(self.stereo_camera.io())  # type: ignore[attr-defined]
         print("\nManipulation Module:")
-        print(self.manipulation_interface.io())
+        print(self.manipulation_interface.io())  # type: ignore[attr-defined]
 
         # Start modules
         logger.info("Starting modules...")
         self.foxglove_bridge.start()
-        self.stereo_camera.start()
-        self.manipulation_interface.start()
+        self.stereo_camera.start()  # type: ignore[attr-defined]
+        self.manipulation_interface.start()  # type: ignore[attr-defined]
 
         # Give modules time to initialize
         await asyncio.sleep(2)
 
         logger.info("PiperArmRobot initialized and started")
 
-    def pick_and_place(
-        self, pick_x: int, pick_y: int, place_x: Optional[int] = None, place_y: Optional[int] = None
+    def pick_and_place(  # type: ignore[no-untyped-def]
+        self, pick_x: int, pick_y: int, place_x: int | None = None, place_y: int | None = None
     ):
         """Execute pick and place task.
 
@@ -128,7 +126,7 @@ class PiperArmRobot(Robot):
             logger.error("Manipulation module not initialized")
             return False
 
-    def handle_keyboard_command(self, key: str):
+    def handle_keyboard_command(self, key: str):  # type: ignore[no-untyped-def]
         """Pass keyboard commands to manipulation module.
 
         Args:
@@ -143,7 +141,7 @@ class PiperArmRobot(Robot):
             logger.error("Manipulation module not initialized")
             return None
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop all modules and clean up."""
         logger.info("Stopping PiperArmRobot...")
 
@@ -163,9 +161,9 @@ class PiperArmRobot(Robot):
         logger.info("PiperArmRobot stopped")
 
 
-async def run_piper_arm():
+async def run_piper_arm() -> None:
     """Run the Piper Arm robot."""
-    robot = PiperArmRobot()
+    robot = PiperArmRobot()  # type: ignore[abstract]
 
     await robot.start()
 
@@ -176,7 +174,7 @@ async def run_piper_arm():
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received")
     finally:
-        await robot.stop()
+        await robot.stop()  # type: ignore[func-returns-value]
 
 
 if __name__ == "__main__":

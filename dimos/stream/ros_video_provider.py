@@ -18,13 +18,12 @@ This module provides a video frame provider that receives frames from ROS (Robot
 and makes them available as an Observable stream.
 """
 
-from reactivex import Subject, Observable
-from reactivex import operators as ops
-from reactivex.scheduler import ThreadPoolScheduler
 import logging
 import time
-from typing import Optional
+
 import numpy as np
+from reactivex import Observable, Subject, operators as ops
+from reactivex.scheduler import ThreadPoolScheduler
 
 from dimos.stream.video_provider import AbstractVideoProvider
 
@@ -44,8 +43,8 @@ class ROSVideoProvider(AbstractVideoProvider):
     """
 
     def __init__(
-        self, dev_name: str = "ros_video", pool_scheduler: Optional[ThreadPoolScheduler] = None
-    ):
+        self, dev_name: str = "ros_video", pool_scheduler: ThreadPoolScheduler | None = None
+    ) -> None:
         """Initialize the ROS video provider.
 
         Args:
@@ -54,11 +53,11 @@ class ROSVideoProvider(AbstractVideoProvider):
         """
         super().__init__(dev_name, pool_scheduler)
         self.logger = logging.getLogger(dev_name)
-        self._subject = Subject()
+        self._subject = Subject()  # type: ignore[var-annotated]
         self._last_frame_time = None
         self.logger.info("ROSVideoProvider initialized")
 
-    def push_data(self, frame: np.ndarray) -> None:
+    def push_data(self, frame: np.ndarray) -> None:  # type: ignore[type-arg]
         """Push a new frame into the provider.
 
         Args:
@@ -75,7 +74,7 @@ class ROSVideoProvider(AbstractVideoProvider):
                 self.logger.debug(
                     f"Frame interval: {frame_interval:.3f}s ({1 / frame_interval:.1f} FPS)"
                 )
-            self._last_frame_time = current_time
+            self._last_frame_time = current_time  # type: ignore[assignment]
 
             self.logger.debug(f"Pushing frame type: {type(frame)}")
             self._subject.on_next(frame)
@@ -84,7 +83,7 @@ class ROSVideoProvider(AbstractVideoProvider):
             self.logger.error(f"Push error: {e}")
             raise
 
-    def capture_video_as_observable(self, fps: int = 30) -> Observable:
+    def capture_video_as_observable(self, fps: int = 30) -> Observable:  # type: ignore[type-arg]
         """Return an observable of video frames.
 
         Args:

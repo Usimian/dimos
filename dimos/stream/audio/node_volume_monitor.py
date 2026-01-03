@@ -13,10 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable
+from collections.abc import Callable
+
 from reactivex import Observable, create, disposable
 
-from dimos.stream.audio.base import AudioEvent, AbstractAudioConsumer
+from dimos.stream.audio.base import AbstractAudioConsumer, AudioEvent
 from dimos.stream.audio.text.base import AbstractTextEmitter
 from dimos.stream.audio.text.node_stdout import TextPrinterNode
 from dimos.stream.audio.volume import calculate_peak_volume
@@ -34,8 +35,8 @@ class VolumeMonitorNode(AbstractAudioConsumer, AbstractTextEmitter):
         self,
         threshold: float = 0.01,
         bar_length: int = 50,
-        volume_func: Callable = calculate_peak_volume,
-    ):
+        volume_func: Callable = calculate_peak_volume,  # type: ignore[type-arg]
+    ) -> None:
         """
         Initialize VolumeMonitorNode.
 
@@ -74,7 +75,7 @@ class VolumeMonitorNode(AbstractAudioConsumer, AbstractTextEmitter):
         activity = "active" if active else "silent"
         return f"{bar} {percentage:3d}% {activity}"
 
-    def consume_audio(self, audio_observable: Observable) -> "VolumeMonitorNode":
+    def consume_audio(self, audio_observable: Observable) -> "VolumeMonitorNode":  # type: ignore[type-arg]
         """
         Set the audio source observable to consume.
 
@@ -84,10 +85,10 @@ class VolumeMonitorNode(AbstractAudioConsumer, AbstractTextEmitter):
         Returns:
             Self for method chaining
         """
-        self.audio_observable = audio_observable
+        self.audio_observable = audio_observable  # type: ignore[assignment]
         return self
 
-    def emit_text(self) -> Observable:
+    def emit_text(self) -> Observable:  # type: ignore[type-arg]
         """
         Create an observable that emits volume text descriptions.
 
@@ -101,7 +102,7 @@ class VolumeMonitorNode(AbstractAudioConsumer, AbstractTextEmitter):
             logger.info(f"Starting volume monitor (method: {self.func_name})")
 
             # Subscribe to the audio source
-            def on_audio_event(event: AudioEvent):
+            def on_audio_event(event: AudioEvent) -> None:
                 try:
                     # Calculate volume
                     volume = self.volume_func(event.data)
@@ -123,7 +124,7 @@ class VolumeMonitorNode(AbstractAudioConsumer, AbstractTextEmitter):
             )
 
             # Return a disposable to clean up resources
-            def dispose():
+            def dispose() -> None:
                 logger.info("Stopping volume monitor")
                 subscription.dispose()
 
@@ -133,10 +134,10 @@ class VolumeMonitorNode(AbstractAudioConsumer, AbstractTextEmitter):
 
 
 def monitor(
-    audio_source: Observable,
+    audio_source: Observable,  # type: ignore[type-arg]
     threshold: float = 0.01,
     bar_length: int = 50,
-    volume_func: Callable = calculate_peak_volume,
+    volume_func: Callable = calculate_peak_volume,  # type: ignore[type-arg]
 ) -> VolumeMonitorNode:
     """
     Create a volume monitor node connected to a text output node.
@@ -167,8 +168,8 @@ def monitor(
 
 
 if __name__ == "__main__":
-    from utils import keepalive
-    from audio.node_simulated import SimulatedAudioSource
+    from audio.node_simulated import SimulatedAudioSource  # type: ignore[import-not-found]
+    from utils import keepalive  # type: ignore[import-untyped]
 
     # Use the monitor function to create and connect the nodes
     volume_monitor = monitor(SimulatedAudioSource().emit_audio())

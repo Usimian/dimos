@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dimos.core import Module, In, Out, rpc
-from dimos.msgs.vision_msgs import Detection2DArray
-from dimos.msgs.geometry_msgs import PoseStamped, Vector3, Quaternion
-from dimos_lcm.sensor_msgs import CameraInfo
-from dimos.utils.logging_config import setup_logger
 import logging
+
+from dimos_lcm.sensor_msgs import CameraInfo  # type: ignore[import-untyped]
 from reactivex.disposable import Disposable
+
+from dimos.core import In, Module, Out, rpc
+from dimos.msgs.geometry_msgs import PoseStamped, Quaternion, Vector3
+from dimos.msgs.vision_msgs import Detection2DArray
+from dimos.utils.logging_config import setup_logger
 
 logger = setup_logger(__name__, level=logging.DEBUG)
 
@@ -26,17 +28,17 @@ logger = setup_logger(__name__, level=logging.DEBUG)
 class BBoxNavigationModule(Module):
     """Minimal module that converts 2D bbox center to navigation goals."""
 
-    detection2d: In[Detection2DArray] = None
-    camera_info: In[CameraInfo] = None
-    goal_request: Out[PoseStamped] = None
+    detection2d: In[Detection2DArray] = None  # type: ignore[assignment]
+    camera_info: In[CameraInfo] = None  # type: ignore[assignment]
+    goal_request: Out[PoseStamped] = None  # type: ignore[assignment]
 
-    def __init__(self, goal_distance: float = 1.0):
+    def __init__(self, goal_distance: float = 1.0) -> None:
         super().__init__()
         self.goal_distance = goal_distance
         self.camera_intrinsics = None
 
     @rpc
-    def start(self):
+    def start(self) -> None:
         unsub = self.camera_info.subscribe(
             lambda msg: setattr(self, "camera_intrinsics", [msg.K[0], msg.K[4], msg.K[2], msg.K[5]])
         )
@@ -49,7 +51,7 @@ class BBoxNavigationModule(Module):
     def stop(self) -> None:
         super().stop()
 
-    def _on_detection(self, det: Detection2DArray):
+    def _on_detection(self, det: Detection2DArray) -> None:
         if det.detections_length == 0 or not self.camera_intrinsics:
             return
         fx, fy, cx, cy = self.camera_intrinsics

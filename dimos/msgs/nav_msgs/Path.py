@@ -14,33 +14,31 @@
 
 from __future__ import annotations
 
-import struct
 import time
-from io import BytesIO
-from typing import BinaryIO, TypeAlias
+from typing import TYPE_CHECKING, BinaryIO
 
-from dimos_lcm.geometry_msgs import Point as LCMPoint
-from dimos_lcm.geometry_msgs import Pose as LCMPose
-from dimos_lcm.geometry_msgs import PoseStamped as LCMPoseStamped
-from dimos_lcm.geometry_msgs import Quaternion as LCMQuaternion
-from dimos_lcm.nav_msgs import Path as LCMPath
-from dimos_lcm.std_msgs import Header as LCMHeader
-from dimos_lcm.std_msgs import Time as LCMTime
+from dimos_lcm.geometry_msgs import (  # type: ignore[import-untyped]
+    Point as LCMPoint,
+    Pose as LCMPose,
+    PoseStamped as LCMPoseStamped,
+    Quaternion as LCMQuaternion,
+)
+from dimos_lcm.nav_msgs import Path as LCMPath  # type: ignore[import-untyped]
+from dimos_lcm.std_msgs import Header as LCMHeader, Time as LCMTime  # type: ignore[import-untyped]
 
 try:
-    from nav_msgs.msg import Path as ROSPath
+    from nav_msgs.msg import Path as ROSPath  # type: ignore[attr-defined]
 except ImportError:
-    ROSPath = None
+    ROSPath = None  # type: ignore[assignment, misc]
 
-from dimos.msgs.geometry_msgs.Pose import Pose
 from dimos.msgs.geometry_msgs.PoseStamped import PoseStamped
-from dimos.msgs.geometry_msgs.Quaternion import Quaternion, QuaternionConvertable
-from dimos.msgs.geometry_msgs.Transform import Transform
-from dimos.msgs.geometry_msgs.Vector3 import Vector3, VectorConvertable
 from dimos.types.timestamped import Timestamped
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
-def sec_nsec(ts):
+
+def sec_nsec(ts):  # type: ignore[no-untyped-def]
     s = int(ts)
     return [s, int((ts - s) * 1_000_000_000)]
 
@@ -51,7 +49,7 @@ class Path(Timestamped):
     frame_id: str
     poses: list[PoseStamped]
 
-    def __init__(
+    def __init__(  # type: ignore[no-untyped-def]
         self,
         ts: float = 0.0,
         frame_id: str = "world",
@@ -78,13 +76,13 @@ class Path(Timestamped):
         """Return the last pose in the path, or None if empty."""
         return self.poses[-1] if self.poses else None
 
-    def tail(self) -> "Path":
+    def tail(self) -> Path:
         """Return a new Path with all poses except the first."""
         return Path(ts=self.ts, frame_id=self.frame_id, poses=self.poses[1:] if self.poses else [])
 
-    def push(self, pose: PoseStamped) -> "Path":
+    def push(self, pose: PoseStamped) -> Path:
         """Return a new Path with the pose appended (immutable)."""
-        return Path(ts=self.ts, frame_id=self.frame_id, poses=self.poses + [pose])
+        return Path(ts=self.ts, frame_id=self.frame_id, poses=[*self.poses, pose])
 
     def push_mut(self, pose: PoseStamped) -> None:
         """Append a pose to this path (mutable)."""
@@ -118,19 +116,19 @@ class Path(Timestamped):
             lcm_pose.header.stamp = LCMTime()
 
             # Set the header with pose timestamp but path's frame_id
-            [lcm_pose.header.stamp.sec, lcm_pose.header.stamp.nsec] = sec_nsec(pose.ts)
+            [lcm_pose.header.stamp.sec, lcm_pose.header.stamp.nsec] = sec_nsec(pose.ts)  # type: ignore[no-untyped-call]
             lcm_pose.header.frame_id = self.frame_id  # All poses use path's frame_id
             lcm_poses.append(lcm_pose)
         lcm_msg.poses = lcm_poses
 
         # Set header with path's own timestamp
-        [lcm_msg.header.stamp.sec, lcm_msg.header.stamp.nsec] = sec_nsec(self.ts)
+        [lcm_msg.header.stamp.sec, lcm_msg.header.stamp.nsec] = sec_nsec(self.ts)  # type: ignore[no-untyped-call]
         lcm_msg.header.frame_id = self.frame_id
 
-        return lcm_msg.lcm_encode()
+        return lcm_msg.lcm_encode()  # type: ignore[no-any-return]
 
     @classmethod
-    def lcm_decode(cls, data: bytes | BinaryIO) -> "Path":
+    def lcm_decode(cls, data: bytes | BinaryIO) -> Path:
         """Decode LCM bytes to Path."""
         lcm_msg = LCMPath.lcm_decode(data)
 
@@ -169,23 +167,23 @@ class Path(Timestamped):
         """Allow indexing and slicing of poses."""
         return self.poses[index]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:  # type: ignore[type-arg]
         """Allow iteration over poses."""
         return iter(self.poses)
 
-    def slice(self, start: int, end: int | None = None) -> "Path":
+    def slice(self, start: int, end: int | None = None) -> Path:
         """Return a new Path with a slice of poses."""
         return Path(ts=self.ts, frame_id=self.frame_id, poses=self.poses[start:end])
 
-    def extend(self, other: "Path") -> "Path":
+    def extend(self, other: Path) -> Path:
         """Return a new Path with poses from both paths (immutable)."""
         return Path(ts=self.ts, frame_id=self.frame_id, poses=self.poses + other.poses)
 
-    def extend_mut(self, other: "Path") -> None:
+    def extend_mut(self, other: Path) -> None:
         """Extend this path with poses from another path (mutable)."""
         self.poses.extend(other.poses)
 
-    def reverse(self) -> "Path":
+    def reverse(self) -> Path:
         """Return a new Path with poses in reverse order."""
         return Path(ts=self.ts, frame_id=self.frame_id, poses=list(reversed(self.poses)))
 
@@ -194,7 +192,7 @@ class Path(Timestamped):
         self.poses.clear()
 
     @classmethod
-    def from_ros_msg(cls, ros_msg: ROSPath) -> "Path":
+    def from_ros_msg(cls, ros_msg: ROSPath) -> Path:
         """Create a Path from a ROS nav_msgs/Path message.
 
         Args:
@@ -221,7 +219,7 @@ class Path(Timestamped):
             ROS Path message
         """
 
-        ros_msg = ROSPath()
+        ros_msg = ROSPath()  # type: ignore[no-untyped-call]
 
         # Set header
         ros_msg.header.frame_id = self.frame_id

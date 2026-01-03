@@ -19,16 +19,16 @@ This module provides skills for visual navigation, including following humans
 and navigating to specific objects using computer vision.
 """
 
-import time
 import logging
 import threading
-from typing import Optional, Tuple
+import time
 
-from dimos.skills.skills import AbstractRobotSkill
-from dimos.utils.logging_config import setup_logger
-from dimos.perception.visual_servoing import VisualServoing
 from pydantic import Field
+
+from dimos.perception.visual_servoing import VisualServoing  # type: ignore[import-untyped]
+from dimos.skills.skills import AbstractRobotSkill
 from dimos.types.vector import Vector
+from dimos.utils.logging_config import setup_logger
 
 logger = setup_logger("dimos.skills.visual_navigation", level=logging.DEBUG)
 
@@ -47,23 +47,23 @@ class FollowHuman(AbstractRobotSkill):
         1.5, description="Desired distance to maintain from the person in meters"
     )
     timeout: float = Field(20.0, description="Maximum time to follow the person in seconds")
-    point: Optional[Tuple[int, int]] = Field(
+    point: tuple[int, int] | None = Field(
         None, description="Optional point to start tracking (x,y pixel coordinates)"
     )
 
-    def __init__(self, robot=None, **data):
+    def __init__(self, robot=None, **data) -> None:  # type: ignore[no-untyped-def]
         super().__init__(robot=robot, **data)
         self._stop_event = threading.Event()
         self._visual_servoing = None
 
-    def __call__(self):
+    def __call__(self):  # type: ignore[no-untyped-def]
         """
         Start following a human using visual servoing.
 
         Returns:
             bool: True if successful, False otherwise
         """
-        super().__call__()
+        super().__call__()  # type: ignore[no-untyped-call]
 
         if (
             not hasattr(self._robot, "person_tracking_stream")
@@ -88,7 +88,7 @@ class FollowHuman(AbstractRobotSkill):
             start_time = time.time()
 
             # Start tracking
-            track_success = self._visual_servoing.start_tracking(
+            track_success = self._visual_servoing.start_tracking(  # type: ignore[attr-defined]
                 point=self.point, desired_distance=self.distance
             )
 
@@ -98,15 +98,15 @@ class FollowHuman(AbstractRobotSkill):
 
             # Main follow loop
             while (
-                self._visual_servoing.running
+                self._visual_servoing.running  # type: ignore[attr-defined]
                 and time.time() - start_time < self.timeout
                 and not self._stop_event.is_set()
             ):
-                output = self._visual_servoing.updateTracking()
+                output = self._visual_servoing.updateTracking()  # type: ignore[attr-defined]
                 x_vel = output.get("linear_vel")
                 z_vel = output.get("angular_vel")
                 logger.debug(f"Following human: x_vel: {x_vel}, z_vel: {z_vel}")
-                self._robot.move(Vector(x_vel, 0, z_vel))
+                self._robot.move(Vector(x_vel, 0, z_vel))  # type: ignore[arg-type, attr-defined]
                 time.sleep(0.05)
 
             # If we completed the full timeout duration, consider it success
@@ -129,7 +129,7 @@ class FollowHuman(AbstractRobotSkill):
                 self._visual_servoing.stop_tracking()
                 self._visual_servoing = None
 
-    def stop(self):
+    def stop(self) -> bool:
         """
         Stop the human following process.
 

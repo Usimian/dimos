@@ -12,18 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+import time
+
 import cv2
 import numpy as np
-import time
-from typing import Optional, Union
-from pathlib import Path
-from ..base.stream_base import StreamBase, AnnotatorType, TransportType
+
+from ..base.stream_base import AnnotatorType, StreamBase, TransportType
 
 
 class GenesisStream(StreamBase):
     """Genesis stream implementation."""
 
-    def __init__(
+    def __init__(  # type: ignore[no-untyped-def]
         self,
         simulator,
         width: int = 1920,
@@ -33,8 +34,8 @@ class GenesisStream(StreamBase):
         annotator_type: AnnotatorType = "rgb",
         transport: TransportType = "tcp",
         rtsp_url: str = "rtsp://mediamtx:8554/stream",
-        usd_path: Optional[Union[str, Path]] = None,
-    ):
+        usd_path: str | Path | None = None,
+    ) -> None:
         """Initialize the Genesis stream."""
         super().__init__(
             simulator=simulator,
@@ -60,12 +61,12 @@ class GenesisStream(StreamBase):
         # Build scene after camera is set up
         simulator.build()
 
-    def _load_stage(self, usd_path: Union[str, Path]):
+    def _load_stage(self, usd_path: str | Path) -> None:
         """Load stage from file."""
         # Genesis handles stage loading through simulator
         pass
 
-    def _setup_camera(self):
+    def _setup_camera(self) -> None:
         """Setup and validate camera."""
         self.camera = self.scene.add_camera(
             res=(self.width, self.height),
@@ -75,12 +76,12 @@ class GenesisStream(StreamBase):
             GUI=False,
         )
 
-    def _setup_annotator(self):
+    def _setup_annotator(self) -> None:
         """Setup the specified annotator."""
         # Genesis handles different render types through camera.render()
         pass
 
-    def stream(self):
+    def stream(self) -> None:
         """Start the streaming loop."""
         try:
             print("[Stream] Starting Genesis camera stream...")
@@ -109,8 +110,8 @@ class GenesisStream(StreamBase):
                     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
                 # Write to FFmpeg
-                self.proc.stdin.write(frame.tobytes())
-                self.proc.stdin.flush()
+                self.proc.stdin.write(frame.tobytes())  # type: ignore[attr-defined]
+                self.proc.stdin.flush()  # type: ignore[attr-defined]
 
                 # Log metrics
                 frame_time = time.time() - frame_start
@@ -129,12 +130,12 @@ class GenesisStream(StreamBase):
         finally:
             self.cleanup()
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Cleanup resources."""
         print("[Cleanup] Stopping FFmpeg process...")
         if hasattr(self, "proc"):
-            self.proc.stdin.close()
-            self.proc.wait()
+            self.proc.stdin.close()  # type: ignore[attr-defined]
+            self.proc.wait()  # type: ignore[attr-defined]
         print("[Cleanup] Closing simulation...")
         try:
             self.simulator.close()

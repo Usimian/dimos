@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Callable, Iterable
 import time
-import open3d as o3d
-from typing import Callable, Union, Any, Protocol, Iterable
+from typing import Any, Protocol
+
+import open3d as o3d  # type: ignore[import-untyped]
 from reactivex.observable import Observable
 
 color1 = [1, 0.706, 0]
@@ -28,7 +30,7 @@ color = [color1, color2, color3, color4]
 #
 # (in case there is some preparation within the fuction and this time needs to be subtracted
 # from the benchmark target)
-def benchmark(calls: int, targetf: Callable[[], Union[int, None]]) -> float:
+def benchmark(calls: int, targetf: Callable[[], int | None]) -> float:
     start = time.time()
     timemod = 0
     for _ in range(calls):
@@ -48,13 +50,13 @@ O3dDrawable = (
 
 
 class ReturnsDrawable(Protocol):
-    def o3d_geometry(self) -> O3dDrawable: ...
+    def o3d_geometry(self) -> O3dDrawable: ...  # type: ignore[valid-type]
 
 
 Drawable = O3dDrawable | ReturnsDrawable
 
 
-def show3d(*components: Iterable[Drawable], title: str = "open3d") -> o3d.visualization.Visualizer:
+def show3d(*components: Iterable[Drawable], title: str = "open3d") -> o3d.visualization.Visualizer:  # type: ignore[valid-type]
     vis = o3d.visualization.Visualizer()
     vis.create_window(window_name=title)
     for component in components:
@@ -89,15 +91,15 @@ def show3d_stream(
     Subsequent geometries update the visualizer. If no new geometry, just poll events.
     geometry_observable: Observable of objects with .o3d_geometry or Open3D geometry
     """
-    import threading
     import queue
+    import threading
     import time
     from typing import Any
 
     q: queue.Queue[Any] = queue.Queue()
     stop_flag = threading.Event()
 
-    def on_next(geometry: O3dDrawable) -> None:
+    def on_next(geometry: O3dDrawable) -> None:  # type: ignore[valid-type]
         q.put(geometry)
 
     def on_error(e: Exception) -> None:
@@ -114,9 +116,9 @@ def show3d_stream(
         on_completed=on_completed,
     )
 
-    def geom(geometry: Drawable) -> O3dDrawable:
+    def geom(geometry: Drawable) -> O3dDrawable:  # type: ignore[valid-type]
         """Extracts the Open3D geometry from the given object."""
-        return geometry.o3d_geometry if hasattr(geometry, "o3d_geometry") else geometry
+        return geometry.o3d_geometry if hasattr(geometry, "o3d_geometry") else geometry  # type: ignore[attr-defined, no-any-return]
 
     # Wait for the first geometry
     first_geometry = None

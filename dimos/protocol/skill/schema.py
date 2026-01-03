@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import inspect
-from typing import Dict, List, Union, get_args, get_origin
+from typing import Union, get_args, get_origin
 
 
-def python_type_to_json_schema(python_type) -> dict:
+def python_type_to_json_schema(python_type) -> dict:  # type: ignore[no-untyped-def, type-arg]
     """Convert Python type annotations to JSON Schema format."""
     # Handle None/NoneType
     if python_type is type(None) or python_type is None:
@@ -37,14 +37,14 @@ def python_type_to_json_schema(python_type) -> dict:
             return {"anyOf": [python_type_to_json_schema(arg) for arg in args]}
 
     # Handle List/list types
-    if origin in (list, List):
+    if origin in (list, list):
         args = get_args(python_type)
         if args:
             return {"type": "array", "items": python_type_to_json_schema(args[0])}
         return {"type": "array"}
 
     # Handle Dict/dict types
-    if origin in (dict, Dict):
+    if origin in (dict, dict):
         return {"type": "object"}
 
     # Handle basic types
@@ -60,12 +60,12 @@ def python_type_to_json_schema(python_type) -> dict:
     return type_map.get(python_type, {"type": "string"})
 
 
-def function_to_schema(func) -> dict:
+def function_to_schema(func) -> dict:  # type: ignore[no-untyped-def, type-arg]
     """Convert a function to OpenAI function schema format."""
     try:
         signature = inspect.signature(func)
     except ValueError as e:
-        raise ValueError(f"Failed to get signature for function {func.__name__}: {str(e)}")
+        raise ValueError(f"Failed to get signature for function {func.__name__}: {e!s}")
 
     properties = {}
     required = []

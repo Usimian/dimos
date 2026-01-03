@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 from dimos.mapping.osm.osm import MapImage, get_osm_map
 from dimos.mapping.osm.query import query_for_one_position, query_for_one_position_and_context
@@ -20,16 +19,15 @@ from dimos.mapping.types import LatLon
 from dimos.models.vl.base import VlModel
 from dimos.utils.logging_config import setup_logger
 
-
 logger = setup_logger(__file__)
 
 
 class CurrentLocationMap:
     _vl_model: VlModel
-    _position: Optional[LatLon]
-    _map_image: Optional[MapImage]
+    _position: LatLon | None
+    _map_image: MapImage | None
 
-    def __init__(self, vl_model: VlModel):
+    def __init__(self, vl_model: VlModel) -> None:
         self._vl_model = vl_model
         self._position = None
         self._map_image = None
@@ -41,17 +39,20 @@ class CurrentLocationMap:
     def update_position(self, position: LatLon) -> None:
         self._position = position
 
-    def query_for_one_position(self, query: str) -> Optional[LatLon]:
-        return query_for_one_position(self._vl_model, self._get_current_map(), query)
+    def query_for_one_position(self, query: str) -> LatLon | None:
+        return query_for_one_position(self._vl_model, self._get_current_map(), query)  # type: ignore[no-untyped-call]
 
     def query_for_one_position_and_context(
         self, query: str, robot_position: LatLon
-    ) -> Optional[tuple[LatLon, str]]:
+    ) -> tuple[LatLon, str] | None:
         return query_for_one_position_and_context(
-            self._vl_model, self._get_current_map(), query, robot_position
+            self._vl_model,
+            self._get_current_map(),  # type: ignore[no-untyped-call]
+            query,
+            robot_position,
         )
 
-    def _get_current_map(self):
+    def _get_current_map(self):  # type: ignore[no-untyped-def]
         if not self._position:
             raise ValueError("Current position has not been set.")
 
@@ -65,11 +66,11 @@ class CurrentLocationMap:
         logger.info(
             f"Getting a new OSM map, position={self._position}, zoom={self._zoom_level} n_tiles={self._n_tiles}"
         )
-        self._map_image = get_osm_map(self._position, self._zoom_level, self._n_tiles)
+        self._map_image = get_osm_map(self._position, self._zoom_level, self._n_tiles)  # type: ignore[arg-type]
 
     def _position_is_too_far_off_center(self) -> bool:
-        x, y = self._map_image.latlon_to_pixel(self._position)
-        width = self._map_image.image.width
+        x, y = self._map_image.latlon_to_pixel(self._position)  # type: ignore[arg-type, union-attr]
+        width = self._map_image.image.width  # type: ignore[union-attr]
         size_min = width * (0.5 - self._center_width / 2)
         size_max = width * (0.5 + self._center_width / 2)
 

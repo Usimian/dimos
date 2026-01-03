@@ -13,52 +13,59 @@
 # limitations under the License.
 
 import time
-from typing import Optional
 
 import numpy as np
-import open3d as o3d
+import open3d as o3d  # type: ignore[import-untyped]
 from reactivex import interval
 from reactivex.disposable import Disposable
 
-from dimos.core import In, Module, Out, rpc
+from dimos.core import DimosCluster, In, LCMTransport, Module, Out, rpc
+from dimos.core.global_config import GlobalConfig
 from dimos.msgs.nav_msgs import OccupancyGrid
 from dimos.msgs.sensor_msgs import PointCloud2
+from dimos.robot.unitree.connection.go2 import Go2ConnectionProtocol
 from dimos.robot.unitree_webrtc.type.lidar import LidarMessage
 
 
 class Map(Module):
-    lidar: In[LidarMessage] = None
-    global_map: Out[LidarMessage] = None
-    global_costmap: Out[OccupancyGrid] = None
-    local_costmap: Out[OccupancyGrid] = None
+    lidar: In[LidarMessage] = None  # type: ignore[assignment]
+    global_map: Out[LidarMessage] = None  # type: ignore[assignment]
+    global_costmap: Out[OccupancyGrid] = None  # type: ignore[assignment]
+    local_costmap: Out[OccupancyGrid] = None  # type: ignore[assignment]
 
     pointcloud: o3d.geometry.PointCloud = o3d.geometry.PointCloud()
 
-    def __init__(
+    def __init__(  # type: ignore[no-untyped-def]
         self,
         voxel_size: float = 0.05,
         cost_resolution: float = 0.05,
-        global_publish_interval: Optional[float] = None,
+        global_publish_interval: float | None = None,
         min_height: float = 0.15,
         max_height: float = 0.6,
+        global_config: GlobalConfig | None = None,
         **kwargs,
-    ):
+    ) -> None:
         self.voxel_size = voxel_size
         self.cost_resolution = cost_resolution
         self.global_publish_interval = global_publish_interval
         self.min_height = min_height
         self.max_height = max_height
+
+        if global_config:
+            if global_config.simulation:
+                self.min_height = 0.3
+
         super().__init__(**kwargs)
 
     @rpc
-    def start(self):
+    def start(self) -> None:
         super().start()
 
         unsub = self.lidar.subscribe(self.add_frame)
         self._disposables.add(Disposable(unsub))
 
-        def publish(_):
-            self.global_map.publish(self.to_lidar_message())
+        def publish(_) -> None:  # type: ignore[no-untyped-def]
+            self.global_map.publish(self.to_lidar_message())  # type: ignore[no-untyped-call]
 
             # temporary, not sure if it belogs in mapper
             # used only for visualizations, not for any algo
@@ -69,11 +76,11 @@ class Map(Module):
                 max_height=self.max_height,
             )
 
-            self.global_costmap.publish(occupancygrid)
+            self.global_costmap.publish(occupancygrid)  # type: ignore[no-untyped-call]
 
         if self.global_publish_interval is not None:
-            unsub = interval(self.global_publish_interval).subscribe(publish)
-            self._disposables.add(unsub)
+            unsub = interval(self.global_publish_interval).subscribe(publish)  # type: ignore[assignment]
+            self._disposables.add(unsub)  # type: ignore[arg-type]
 
     @rpc
     def stop(self) -> None:
@@ -94,7 +101,7 @@ class Map(Module):
         )
 
     @rpc
-    def add_frame(self, frame: LidarMessage) -> "Map":
+    def add_frame(self, frame: LidarMessage) -> "Map":  # type: ignore[return]
         """Voxelise *frame* and splice it into the running map."""
         new_pct = frame.pointcloud.voxel_down_sample(voxel_size=self.voxel_size)
 
@@ -109,7 +116,7 @@ class Map(Module):
             min_height=0.15,
             max_height=0.6,
         ).gradient(max_distance=0.25)
-        self.local_costmap.publish(local_costmap)
+        self.local_costmap.publish(local_costmap)  # type: ignore[no-untyped-call]
 
     @property
     def o3d_geometry(self) -> o3d.geometry.PointCloud:
@@ -159,3 +166,19 @@ def splice_cylinder(
 
     survivors = map_pcd.select_by_index(victims, invert=True)
     return survivors + patch_pcd
+
+
+mapper = Map.blueprint
+
+
+def deploy(dimos: DimosCluster, connection: Go2ConnectionProtocol):  # type: ignore[no-untyped-def]
+    mapper = dimos.deploy(Map, global_publish_interval=1.0)  # type: ignore[attr-defined]
+    mapper.global_map.transport = LCMTransport("/global_map", LidarMessage)
+    mapper.global_costmap.transport = LCMTransport("/global_costmap", OccupancyGrid)
+    mapper.local_costmap.transport = LCMTransport("/local_costmap", OccupancyGrid)
+    mapper.lidar.connect(connection.pointcloud)  # type: ignore[attr-defined]
+    mapper.start()
+    return mapper
+
+
+__all__ = ["Map", "mapper"]

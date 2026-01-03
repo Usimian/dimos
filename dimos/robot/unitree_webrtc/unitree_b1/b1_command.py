@@ -17,9 +17,9 @@
 
 """Internal B1 command structure for UDP communication."""
 
-from pydantic import BaseModel, Field
-from typing import Optional
 import struct
+
+from pydantic import BaseModel, Field
 
 
 class B1Command(BaseModel):
@@ -39,7 +39,7 @@ class B1Command(BaseModel):
     )  # Control mode (uint8): 0=idle, 1=stand, 2=walk, 6=recovery
 
     @classmethod
-    def from_twist(cls, twist, mode: int = 2):
+    def from_twist(cls, twist, mode: int = 2):  # type: ignore[no-untyped-def]
         """Create B1Command from standard ROS Twist message.
 
         This is the key integration point for navigation and planning.

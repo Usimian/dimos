@@ -17,13 +17,13 @@ Dimensional-hosted grasp generation for manipulation pipeline.
 """
 
 import asyncio
-import numpy as np
-import open3d as o3d
-from typing import Dict, List, Optional
 
+import numpy as np
+import open3d as o3d  # type: ignore[import-untyped]
+
+from dimos.perception.grasp_generation.utils import parse_grasp_results
 from dimos.types.manipulation import ObjectData
 from dimos.utils.logging_config import setup_logger
-from dimos.perception.grasp_generation.utils import parse_grasp_results
 
 logger = setup_logger("dimos.perception.grasp_generation")
 
@@ -33,7 +33,7 @@ class HostedGraspGenerator:
     Dimensional-hosted grasp generator using WebSocket communication.
     """
 
-    def __init__(self, server_url: str):
+    def __init__(self, server_url: str) -> None:
         """
         Initialize Dimensional-hosted grasp generator.
 
@@ -44,8 +44,8 @@ class HostedGraspGenerator:
         logger.info(f"Initialized grasp generator with server: {server_url}")
 
     def generate_grasps_from_objects(
-        self, objects: List[ObjectData], full_pcd: o3d.geometry.PointCloud
-    ) -> List[Dict]:
+        self, objects: list[ObjectData], full_pcd: o3d.geometry.PointCloud
+    ) -> list[dict]:  # type: ignore[type-arg]
         """
         Generate grasps from ObjectData objects using grasp generator.
 
@@ -74,8 +74,8 @@ class HostedGraspGenerator:
                     continue
 
                 colors = None
-                if "colors_numpy" in obj and obj["colors_numpy"] is not None:
-                    colors = obj["colors_numpy"]
+                if "colors_numpy" in obj and obj["colors_numpy"] is not None:  # type: ignore[typeddict-item]
+                    colors = obj["colors_numpy"]  # type: ignore[typeddict-item]
                     if isinstance(colors, np.ndarray) and colors.size > 0:
                         if (
                             colors.shape[0] != points.shape[0]
@@ -112,8 +112,10 @@ class HostedGraspGenerator:
             return []
 
     def _send_grasp_request_sync(
-        self, points: np.ndarray, colors: Optional[np.ndarray]
-    ) -> Optional[List[Dict]]:
+        self,
+        points: np.ndarray,  # type: ignore[type-arg]
+        colors: np.ndarray | None,  # type: ignore[type-arg]
+    ) -> list[dict] | None:  # type: ignore[type-arg]
         """Send synchronous grasp request to grasp server."""
 
         try:
@@ -148,10 +150,13 @@ class HostedGraspGenerator:
             return None
 
     async def _async_grasp_request(
-        self, points: np.ndarray, colors: np.ndarray
-    ) -> Optional[List[Dict]]:
+        self,
+        points: np.ndarray,  # type: ignore[type-arg]
+        colors: np.ndarray,  # type: ignore[type-arg]
+    ) -> list[dict] | None:  # type: ignore[type-arg]
         """Async grasp request helper."""
         import json
+
         import websockets
 
         try:
@@ -169,7 +174,7 @@ class HostedGraspGenerator:
                 if isinstance(grasps, dict) and "error" in grasps:
                     logger.error(f"Server returned error: {grasps['error']}")
                     return None
-                elif isinstance(grasps, (int, float)) and grasps == 0:
+                elif isinstance(grasps, int | float) and grasps == 0:
                     return None
                 elif not isinstance(grasps, list):
                     logger.error(f"Server returned unexpected response type: {type(grasps)}")
@@ -183,7 +188,7 @@ class HostedGraspGenerator:
             logger.error(f"Async grasp request failed: {e}")
             return None
 
-    def _convert_grasp_format(self, grasps: List[dict]) -> List[dict]:
+    def _convert_grasp_format(self, grasps: list[dict]) -> list[dict]:  # type: ignore[type-arg]
         """Convert Dimensional Grasp format to visualization format."""
         converted = []
 
@@ -206,7 +211,7 @@ class HostedGraspGenerator:
         converted.sort(key=lambda x: x["score"], reverse=True)
         return converted
 
-    def _rotation_matrix_to_euler(self, rotation_matrix: np.ndarray) -> Dict[str, float]:
+    def _rotation_matrix_to_euler(self, rotation_matrix: np.ndarray) -> dict[str, float]:  # type: ignore[type-arg]
         """Convert rotation matrix to Euler angles (in radians)."""
         sy = np.sqrt(rotation_matrix[0, 0] ** 2 + rotation_matrix[1, 0] ** 2)
 
@@ -223,6 +228,6 @@ class HostedGraspGenerator:
 
         return {"roll": x, "pitch": y, "yaw": z}
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up resources."""
         logger.info("Grasp generator cleaned up")

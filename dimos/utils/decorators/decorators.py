@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Callable
+from functools import wraps
 import threading
 import time
-from functools import wraps
-from typing import Callable, Optional
 
 from .accumulators import Accumulator, LatestAccumulator
 
 
-def limit(max_freq: float, accumulator: Optional[Accumulator] = None):
+def limit(max_freq: float, accumulator: Accumulator | None = None):  # type: ignore[no-untyped-def, type-arg]
     """
     Decorator that limits function call frequency.
 
@@ -43,22 +43,22 @@ def limit(max_freq: float, accumulator: Optional[Accumulator] = None):
     if accumulator is None:
         accumulator = LatestAccumulator()
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable) -> Callable:  # type: ignore[type-arg]
         last_call_time = 0.0
         lock = threading.Lock()
-        timer: Optional[threading.Timer] = None
+        timer: threading.Timer | None = None
 
-        def execute_accumulated():
+        def execute_accumulated() -> None:
             nonlocal last_call_time, timer
             with lock:
                 if len(accumulator):
-                    acc_args, acc_kwargs = accumulator.get()
+                    acc_args, acc_kwargs = accumulator.get()  # type: ignore[misc]
                     last_call_time = time.time()
                     timer = None
                     func(*acc_args, **acc_kwargs)
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs):  # type: ignore[no-untyped-def]
             nonlocal last_call_time, timer
             current_time = time.time()
 
@@ -77,7 +77,7 @@ def limit(max_freq: float, accumulator: Optional[Accumulator] = None):
                     # if we have accumulated data, we get a compound value
                     if len(accumulator):
                         accumulator.add(*args, **kwargs)
-                        acc_args, acc_kwargs = accumulator.get()  # accumulator resets here
+                        acc_args, acc_kwargs = accumulator.get()  # type: ignore[misc]  # accumulator resets here
                         return func(*acc_args, **acc_kwargs)
 
                     # No accumulated data, normal call
@@ -102,7 +102,7 @@ def limit(max_freq: float, accumulator: Optional[Accumulator] = None):
     return decorator
 
 
-def simple_mcache(method: Callable) -> Callable:
+def simple_mcache(method: Callable) -> Callable:  # type: ignore[type-arg]
     """
     Decorator to cache the result of a method call on the instance.
 
@@ -124,7 +124,7 @@ def simple_mcache(method: Callable) -> Callable:
     lock_name = f"_lock_{method.__name__}"
 
     @wraps(method)
-    def getter(self):
+    def getter(self):  # type: ignore[no-untyped-def]
         # Get or create the lock for this instance
         if not hasattr(self, lock_name):
             # This is a one-time operation, race condition here is acceptable
@@ -143,3 +143,59 @@ def simple_mcache(method: Callable) -> Callable:
             return getattr(self, attr_name)
 
     return getter
+
+
+def retry(max_retries: int = 3, on_exception: type[Exception] = Exception, delay: float = 0.0):  # type: ignore[no-untyped-def]
+    """
+    Decorator that retries a function call if it raises an exception.
+
+    Args:
+        max_retries: Maximum number of retry attempts (default: 3)
+        on_exception: Exception type to catch and retry on (default: Exception)
+        delay: Fixed delay in seconds between retries (default: 0.0)
+
+    Returns:
+        Decorated function that will retry on failure
+
+    Example:
+        @retry(max_retries=5, on_exception=ConnectionError, delay=0.5)
+        def connect_to_server():
+            # connection logic that might fail
+            pass
+
+        @retry()  # Use defaults: 3 retries on any Exception, no delay
+        def risky_operation():
+            # might fail occasionally
+            pass
+    """
+    if max_retries < 0:
+        raise ValueError("max_retries must be non-negative")
+    if delay < 0:
+        raise ValueError("delay must be non-negative")
+
+    def decorator(func: Callable) -> Callable:  # type: ignore[type-arg]
+        @wraps(func)
+        def wrapper(*args, **kwargs):  # type: ignore[no-untyped-def]
+            last_exception = None
+
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except on_exception as e:
+                    last_exception = e
+                    if attempt < max_retries:
+                        # Still have retries left
+                        if delay > 0:
+                            time.sleep(delay)
+                        continue
+                    else:
+                        # Out of retries, re-raise the last exception
+                        raise
+
+            # This should never be reached, but just in case
+            if last_exception:
+                raise last_exception
+
+        return wrapper
+
+    return decorator

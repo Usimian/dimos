@@ -13,11 +13,11 @@
 # limitations under the License.
 from __future__ import annotations
 
-import time
-import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Generic, Literal, Optional, TypeVar
+import time
+from typing import Any, Generic, Literal, TypeVar
 
 from dimos.types.timestamped import Timestamped
 from dimos.utils.generic import truncate_display_string
@@ -54,19 +54,20 @@ class Return(Enum):
 @dataclass
 class SkillConfig:
     name: str
-    reducer: "ReducerF"
+    reducer: ReducerF
     stream: Stream
     ret: Return
     output: Output
     schema: dict[str, Any]
-    f: Callable | None = None
+    f: Callable | None = None  # type: ignore[type-arg]
     autostart: bool = False
+    hide_skill: bool = False
 
-    def bind(self, f: Callable) -> "SkillConfig":
+    def bind(self, f: Callable) -> SkillConfig:  # type: ignore[type-arg]
         self.f = f
         return self
 
-    def call(self, call_id, *args, **kwargs) -> Any:
+    def call(self, call_id, *args, **kwargs) -> Any:  # type: ignore[no-untyped-def]
         if self.f is None:
             raise ValueError(
                 "Function is not bound to the SkillConfig. This should be called only within AgentListener."
@@ -74,7 +75,7 @@ class SkillConfig:
 
         return self.f(*args, **kwargs, call_id=call_id)
 
-    def __str__(self):
+    def __str__(self) -> str:
         parts = [f"name={self.name}"]
 
         # Only show reducer if stream is not none (streaming is happening)
@@ -100,8 +101,8 @@ M = TypeVar("M", bound="MsgType")
 
 def maybe_encode(something: Any) -> str:
     if hasattr(something, "agent_encode"):
-        return something.agent_encode()
-    return something
+        return something.agent_encode()  # type: ignore[no-any-return]
+    return something  # type: ignore[no-any-return]
 
 
 class SkillMsg(Timestamped, Generic[M]):
@@ -109,7 +110,7 @@ class SkillMsg(Timestamped, Generic[M]):
     type: M
     call_id: str
     skill_name: str
-    content: str | int | float | dict | list
+    content: str | int | float | dict | list  # type: ignore[type-arg]
 
     def __init__(
         self,
@@ -135,7 +136,7 @@ class SkillMsg(Timestamped, Generic[M]):
     def start(self) -> bool:
         return self.type == MsgType.start
 
-    def __str__(self):
+    def __str__(self) -> str:  # type: ignore[return]
         time_ago = time.time() - self.ts
 
         if self.type == MsgType.start:
@@ -155,7 +156,7 @@ class SkillMsg(Timestamped, Generic[M]):
 # typing looks complex but it's a standard reducer function signature, using SkillMsgs
 # (Optional[accumulator], msg) -> accumulator
 ReducerF = Callable[
-    [Optional[SkillMsg[Literal[MsgType.reduced_stream]]], SkillMsg[Literal[MsgType.stream]]],
+    [SkillMsg[Literal[MsgType.reduced_stream]] | None, SkillMsg[Literal[MsgType.stream]]],
     SkillMsg[Literal[MsgType.reduced_stream]],
 ]
 
@@ -163,10 +164,10 @@ ReducerF = Callable[
 C = TypeVar("C")  # content type
 A = TypeVar("A")  # accumulator type
 # define a naive reducer function type that's generic in terms of the accumulator type
-SimpleReducerF = Callable[[Optional[A], C], A]
+SimpleReducerF = Callable[[A | None, C], A]
 
 
-def make_reducer(simple_reducer: SimpleReducerF) -> ReducerF:
+def make_reducer(simple_reducer: SimpleReducerF) -> ReducerF:  # type: ignore[type-arg]
     """
     Converts a naive reducer function into a standard reducer function.
     The naive reducer function should accept an accumulator and a message,
@@ -174,7 +175,7 @@ def make_reducer(simple_reducer: SimpleReducerF) -> ReducerF:
     """
 
     def reducer(
-        accumulator: Optional[SkillMsg[Literal[MsgType.reduced_stream]]],
+        accumulator: SkillMsg[Literal[MsgType.reduced_stream]] | None,
         msg: SkillMsg[Literal[MsgType.stream]],
     ) -> SkillMsg[Literal[MsgType.reduced_stream]]:
         # Extract the content from the accumulator if it exists
@@ -208,17 +209,17 @@ def _make_skill_msg(
 
 
 def sum_reducer(
-    accumulator: Optional[SkillMsg[Literal[MsgType.reduced_stream]]],
+    accumulator: SkillMsg[Literal[MsgType.reduced_stream]] | None,
     msg: SkillMsg[Literal[MsgType.stream]],
 ) -> SkillMsg[Literal[MsgType.reduced_stream]]:
     """Sum reducer that adds values together."""
     acc_value = accumulator.content if accumulator else None
-    new_value = acc_value + msg.content if acc_value else msg.content
+    new_value = acc_value + msg.content if acc_value else msg.content  # type: ignore[operator]
     return _make_skill_msg(msg, new_value)
 
 
 def latest_reducer(
-    accumulator: Optional[SkillMsg[Literal[MsgType.reduced_stream]]],
+    accumulator: SkillMsg[Literal[MsgType.reduced_stream]] | None,
     msg: SkillMsg[Literal[MsgType.stream]],
 ) -> SkillMsg[Literal[MsgType.reduced_stream]]:
     """Latest reducer that keeps only the most recent value."""
@@ -226,40 +227,40 @@ def latest_reducer(
 
 
 def all_reducer(
-    accumulator: Optional[SkillMsg[Literal[MsgType.reduced_stream]]],
+    accumulator: SkillMsg[Literal[MsgType.reduced_stream]] | None,
     msg: SkillMsg[Literal[MsgType.stream]],
 ) -> SkillMsg[Literal[MsgType.reduced_stream]]:
     """All reducer that collects all values into a list."""
     acc_value = accumulator.content if accumulator else None
-    new_value = acc_value + [msg.content] if acc_value else [msg.content]
+    new_value = [*acc_value, msg.content] if acc_value else [msg.content]  # type: ignore[misc]
     return _make_skill_msg(msg, new_value)
 
 
 def accumulate_list(
-    accumulator: Optional[SkillMsg[Literal[MsgType.reduced_stream]]],
+    accumulator: SkillMsg[Literal[MsgType.reduced_stream]] | None,
     msg: SkillMsg[Literal[MsgType.stream]],
 ) -> SkillMsg[Literal[MsgType.reduced_stream]]:
     """All reducer that collects all values into a list."""
     acc_value = accumulator.content if accumulator else []
-    return _make_skill_msg(msg, acc_value + msg.content)
+    return _make_skill_msg(msg, acc_value + msg.content)  # type: ignore[operator]
 
 
 def accumulate_dict(
-    accumulator: Optional[SkillMsg[Literal[MsgType.reduced_stream]]],
+    accumulator: SkillMsg[Literal[MsgType.reduced_stream]] | None,
     msg: SkillMsg[Literal[MsgType.stream]],
 ) -> SkillMsg[Literal[MsgType.reduced_stream]]:
     """All reducer that collects all values into a list."""
     acc_value = accumulator.content if accumulator else {}
-    return _make_skill_msg(msg, {**acc_value, **msg.content})
+    return _make_skill_msg(msg, {**acc_value, **msg.content})  # type: ignore[dict-item]
 
 
 def accumulate_string(
-    accumulator: Optional[SkillMsg[Literal[MsgType.reduced_stream]]],
+    accumulator: SkillMsg[Literal[MsgType.reduced_stream]] | None,
     msg: SkillMsg[Literal[MsgType.stream]],
 ) -> SkillMsg[Literal[MsgType.reduced_stream]]:
     """All reducer that collects all values into a list."""
     acc_value = accumulator.content if accumulator else ""
-    return _make_skill_msg(msg, acc_value + "\n" + msg.content)
+    return _make_skill_msg(msg, acc_value + "\n" + msg.content)  # type: ignore[operator]
 
 
 class Reducer:

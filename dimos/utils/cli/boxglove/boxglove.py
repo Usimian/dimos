@@ -14,29 +14,25 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import numpy as np
 import reactivex.operators as ops
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.color import Color
 from textual.containers import Container
 from textual.reactive import reactive
-from textual.widgets import Footer, Header, Label, Static
+from textual.widgets import Footer, Static
 
 from dimos import core
-from dimos.msgs.geometry_msgs import Pose, PoseStamped, Transform, Vector3
 from dimos.msgs.nav_msgs import OccupancyGrid
-from dimos.msgs.sensor_msgs import Image, PointCloud2
-from dimos.robot.unitree_webrtc.multiprocess.unitree_go2_navonly import ConnectionModule
 from dimos.robot.unitree_webrtc.type.lidar import LidarMessage
-from dimos.utils.cli.boxglove.connection import Connection
 
 if TYPE_CHECKING:
     from reactivex.disposable import Disposable
 
     from dimos.msgs.nav_msgs import OccupancyGrid
+    from dimos.utils.cli.boxglove.connection import Connection
 
 
 blocks = "█▗▖▝▘"
@@ -56,7 +52,7 @@ bottom_right = alphabet[4]  # Quadrant upper left
 full = alphabet[0]  # Full block
 
 
-class OccupancyGridApp(App):
+class OccupancyGridApp(App):  # type: ignore[type-arg]
     """A Textual app for visualizing OccupancyGrid data in real-time."""
 
     CSS = """
@@ -64,7 +60,7 @@ class OccupancyGridApp(App):
         layout: vertical;
         overflow: hidden;
     }
-    
+
     #grid-container {
         width: 100%;
         height: 1fr;
@@ -72,14 +68,14 @@ class OccupancyGridApp(App):
         margin: 0;
         padding: 0;
     }
-    
+
     #grid-display {
         width: 100%;
         height: 100%;
         margin: 0;
         padding: 0;
     }
-    
+
     Footer {
         dock: bottom;
         height: 1;
@@ -87,19 +83,19 @@ class OccupancyGridApp(App):
     """
 
     # Reactive properties
-    grid_data: reactive[Optional["OccupancyGrid"]] = reactive(None)
+    grid_data: reactive[OccupancyGrid | None] = reactive(None)
 
     BINDINGS = [
         ("q", "quit", "Quit"),
         ("ctrl+c", "quit", "Quit"),
     ]
 
-    def __init__(self, connection: Connection, *args, **kwargs):
+    def __init__(self, connection: Connection, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         super().__init__(*args, **kwargs)
         self.connection = connection
-        self.subscription: Optional[Disposable] = None
-        self.grid_display: Optional[Static] = None
-        self.cached_grid: Optional["OccupancyGrid"] = None
+        self.subscription: Disposable | None = None
+        self.grid_display: Static | None = None
+        self.cached_grid: OccupancyGrid | None = None
 
     def compose(self) -> ComposeResult:
         """Create the app layout."""
@@ -115,20 +111,20 @@ class OccupancyGridApp(App):
         self.theme = "flexoki"
 
         # Subscribe to the OccupancyGrid stream
-        def on_grid(grid: "OccupancyGrid") -> None:
+        def on_grid(grid: OccupancyGrid) -> None:
             self.grid_data = grid
 
         def on_error(error: Exception) -> None:
             self.notify(f"Error: {error}", severity="error")
 
-        self.subscription = self.connection().subscribe(on_next=on_grid, on_error=on_error)
+        self.subscription = self.connection().subscribe(on_next=on_grid, on_error=on_error)  # type: ignore[assignment]
 
     async def on_unmount(self) -> None:
         """Clean up subscription when app closes."""
         if self.subscription:
             self.subscription.dispose()
 
-    def watch_grid_data(self, grid: Optional["OccupancyGrid"]) -> None:
+    def watch_grid_data(self, grid: OccupancyGrid | None) -> None:
         """Update display when new grid data arrives."""
         if grid is None:
             return
@@ -138,16 +134,16 @@ class OccupancyGridApp(App):
 
         # Render the grid as ASCII art
         grid_text = self.render_grid(grid)
-        self.grid_display.update(grid_text)
+        self.grid_display.update(grid_text)  # type: ignore[union-attr]
 
-    def on_resize(self, event) -> None:
+    def on_resize(self, event) -> None:  # type: ignore[no-untyped-def]
         """Handle terminal resize events."""
         if self.cached_grid:
             # Re-render with new terminal dimensions
             grid_text = self.render_grid(self.cached_grid)
-            self.grid_display.update(grid_text)
+            self.grid_display.update(grid_text)  # type: ignore[union-attr]
 
-    def render_grid(self, grid: "OccupancyGrid") -> Text:
+    def render_grid(self, grid: OccupancyGrid) -> Text:
         """Render the OccupancyGrid as colored ASCII art, scaled to fit terminal."""
         text = Text()
 
@@ -177,7 +173,7 @@ class OccupancyGridApp(App):
         render_height = min(int(grid.height / scale_float), terminal_height)
 
         # Store both integer and float scale for different uses
-        scale = int(np.ceil(scale_float))  # For legacy compatibility
+        int(np.ceil(scale_float))  # For legacy compatibility
 
         # Adjust render dimensions to use all available space
         # This reduces jumping by allowing fractional cell sizes
@@ -185,7 +181,7 @@ class OccupancyGridApp(App):
         actual_scale_y = grid.height / render_height if render_height > 0 else 1
 
         # Function to get value with fractional scaling
-        def get_cell_value(grid_data: np.ndarray, x: int, y: int) -> int:
+        def get_cell_value(grid_data: np.ndarray, x: int, y: int) -> int:  # type: ignore[type-arg]
             # Use fractional coordinates for smoother scaling
             y_center = int((y + 0.5) * actual_scale_y)
             x_center = int((x + 0.5) * actual_scale_x)
@@ -196,17 +192,17 @@ class OccupancyGridApp(App):
 
             # For now, just sample the center point
             # Could do area averaging for smoother results
-            return grid_data[y_center, x_center]
+            return grid_data[y_center, x_center]  # type: ignore[no-any-return]
 
         # Helper function to check if a cell is an obstacle
-        def is_obstacle(grid_data: np.ndarray, x: int, y: int) -> bool:
+        def is_obstacle(grid_data: np.ndarray, x: int, y: int) -> bool:  # type: ignore[type-arg]
             if x < 0 or x >= render_width or y < 0 or y >= render_height:
                 return False
             value = get_cell_value(grid_data, x, y)
             return value > 90  # Consider cells with >90% probability as obstacles
 
         # Character and color mapping with intelligent obstacle rendering
-        def get_cell_char_and_style(grid_data: np.ndarray, x: int, y: int) -> tuple[str, str]:
+        def get_cell_char_and_style(grid_data: np.ndarray, x: int, y: int) -> tuple[str, str]:  # type: ignore[type-arg]
             value = get_cell_value(grid_data, x, y)
             norm_value = min(value, 100) / 100.0
 
@@ -259,9 +255,9 @@ class OccupancyGridApp(App):
                     # No neighbors - isolated obstacle
                     symbol = full + full
 
-                return symbol, None
+                return symbol, None  # type: ignore[return-value]
             else:
-                return "  ", None
+                return "  ", None  # type: ignore[return-value]
 
         # Render the scaled grid row by row (flip Y axis for proper display)
         for y in range(render_height - 1, -1, -1):
@@ -276,14 +272,14 @@ class OccupancyGridApp(App):
         return text
 
 
-def main():
+def main() -> None:
     """Run the OccupancyGrid visualizer with a connection."""
     # app = OccupancyGridApp(core.LCMTransport("/global_costmap", OccupancyGrid).observable)
 
     app = OccupancyGridApp(
-        lambda: core.LCMTransport("/lidar", LidarMessage)
+        lambda: core.LCMTransport("/lidar", LidarMessage)  # type: ignore[no-untyped-call]
         .observable()
-        .pipe(ops.map(lambda msg: msg.costmap()))
+        .pipe(ops.map(lambda msg: msg.costmap()))  # type: ignore[attr-defined]
     )
     app.run()
     import time

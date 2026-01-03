@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import threading
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Optional, TypeVar
+import threading
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -23,12 +23,12 @@ class Accumulator(ABC, Generic[T]):
     """Base class for accumulating messages between rate-limited calls."""
 
     @abstractmethod
-    def add(self, *args, **kwargs) -> None:
+    def add(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         """Add args and kwargs to the accumulator."""
         pass
 
     @abstractmethod
-    def get(self) -> Optional[tuple[tuple, dict]]:
+    def get(self) -> tuple[tuple, dict] | None:  # type: ignore[type-arg]
         """Get the accumulated args and kwargs and reset the accumulator."""
         pass
 
@@ -41,15 +41,15 @@ class Accumulator(ABC, Generic[T]):
 class LatestAccumulator(Accumulator[T]):
     """Simple accumulator that remembers only the latest args and kwargs."""
 
-    def __init__(self):
-        self._latest: Optional[tuple[tuple, dict]] = None
+    def __init__(self) -> None:
+        self._latest: tuple[tuple, dict] | None = None  # type: ignore[type-arg]
         self._lock = threading.Lock()
 
-    def add(self, *args, **kwargs) -> None:
+    def add(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         with self._lock:
             self._latest = (args, kwargs)
 
-    def get(self) -> Optional[tuple[tuple, dict]]:
+    def get(self) -> tuple[tuple, dict] | None:  # type: ignore[type-arg]
         with self._lock:
             result = self._latest
             self._latest = None
@@ -67,13 +67,13 @@ class RollingAverageAccumulator(Accumulator[T]):
     a rolling average without storing individual values.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._sum: float = 0.0
         self._count: int = 0
-        self._latest_kwargs: dict = {}
+        self._latest_kwargs: dict = {}  # type: ignore[type-arg]
         self._lock = threading.Lock()
 
-    def add(self, *args, **kwargs) -> None:
+    def add(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         if not args:
             raise ValueError("RollingAverageAccumulator requires at least one argument")
 
@@ -86,7 +86,7 @@ class RollingAverageAccumulator(Accumulator[T]):
             except (TypeError, ValueError):
                 raise TypeError(f"First argument must be numeric, got {type(args[0])}")
 
-    def get(self) -> Optional[tuple[tuple, dict]]:
+    def get(self) -> tuple[tuple, dict] | None:  # type: ignore[type-arg]
         with self._lock:
             if self._count == 0:
                 return None

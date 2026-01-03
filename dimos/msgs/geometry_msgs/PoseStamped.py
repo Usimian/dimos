@@ -14,20 +14,16 @@
 
 from __future__ import annotations
 
-import struct
 import time
-from io import BytesIO
 from typing import BinaryIO, TypeAlias
 
-from dimos_lcm.geometry_msgs import PoseStamped as LCMPoseStamped
-from dimos_lcm.std_msgs import Header as LCMHeader
-from dimos_lcm.std_msgs import Time as LCMTime
+from dimos_lcm.geometry_msgs import PoseStamped as LCMPoseStamped  # type: ignore[import-untyped]
 
 
 try:
-    from geometry_msgs.msg import PoseStamped as ROSPoseStamped
+    from geometry_msgs.msg import PoseStamped as ROSPoseStamped  # type: ignore[attr-defined]
 except ImportError:
-    ROSPoseStamped = None
+    ROSPoseStamped = None  # type: ignore[assignment, misc]
 
 from plum import dispatch
 
@@ -45,7 +41,7 @@ PoseConvertable: TypeAlias = (
 )
 
 
-def sec_nsec(ts):
+def sec_nsec(ts):  # type: ignore[no-untyped-def]
     s = int(ts)
     return [s, int((ts - s) * 1_000_000_000)]
 
@@ -56,7 +52,7 @@ class PoseStamped(Pose, Timestamped):
     frame_id: str
 
     @dispatch
-    def __init__(self, ts: float = 0.0, frame_id: str = "", **kwargs) -> None:
+    def __init__(self, ts: float = 0.0, frame_id: str = "", **kwargs) -> None:  # type: ignore[no-untyped-def]
         self.frame_id = frame_id
         self.ts = ts if ts != 0 else time.time()
         super().__init__(**kwargs)
@@ -64,9 +60,9 @@ class PoseStamped(Pose, Timestamped):
     def lcm_encode(self) -> bytes:
         lcm_mgs = LCMPoseStamped()
         lcm_mgs.pose = self
-        [lcm_mgs.header.stamp.sec, lcm_mgs.header.stamp.nsec] = sec_nsec(self.ts)
+        [lcm_mgs.header.stamp.sec, lcm_mgs.header.stamp.nsec] = sec_nsec(self.ts)  # type: ignore[no-untyped-call]
         lcm_mgs.header.frame_id = self.frame_id
-        return lcm_mgs.lcm_encode()
+        return lcm_mgs.lcm_encode()  # type: ignore[no-any-return]
 
     @classmethod
     def lcm_decode(cls, data: bytes | BinaryIO) -> PoseStamped:
@@ -80,7 +76,7 @@ class PoseStamped(Pose, Timestamped):
                 lcm_msg.pose.orientation.y,
                 lcm_msg.pose.orientation.z,
                 lcm_msg.pose.orientation.w,
-            ],  # noqa: E501,
+            ],
         )
 
     def __str__(self) -> str:
@@ -165,7 +161,7 @@ class PoseStamped(Pose, Timestamped):
         )
 
     @classmethod
-    def from_ros_msg(cls, ros_msg: ROSPoseStamped) -> "PoseStamped":
+    def from_ros_msg(cls, ros_msg: ROSPoseStamped) -> PoseStamped:  # type: ignore[override]
         """Create a PoseStamped from a ROS geometry_msgs/PoseStamped message.
 
         Args:
@@ -187,13 +183,13 @@ class PoseStamped(Pose, Timestamped):
             orientation=pose.orientation,
         )
 
-    def to_ros_msg(self) -> ROSPoseStamped:
+    def to_ros_msg(self) -> ROSPoseStamped:  # type: ignore[override]
         """Convert to a ROS geometry_msgs/PoseStamped message.
 
         Returns:
             ROS PoseStamped message
         """
-        ros_msg = ROSPoseStamped()
+        ros_msg = ROSPoseStamped()  # type: ignore[no-untyped-call]
 
         # Set header
         ros_msg.header.frame_id = self.frame_id

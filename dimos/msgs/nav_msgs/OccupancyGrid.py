@@ -14,14 +14,16 @@
 
 from __future__ import annotations
 
-import time
 from enum import IntEnum
-from typing import TYPE_CHECKING, BinaryIO, Optional
+import time
+from typing import TYPE_CHECKING, BinaryIO
 
+from dimos_lcm.nav_msgs import (  # type: ignore[import-untyped]
+    MapMetaData,
+    OccupancyGrid as LCMOccupancyGrid,
+)
+from dimos_lcm.std_msgs import Time as LCMTime  # type: ignore[import-untyped]
 import numpy as np
-from dimos_lcm.nav_msgs import MapMetaData
-from dimos_lcm.nav_msgs import OccupancyGrid as LCMOccupancyGrid
-from dimos_lcm.std_msgs import Time as LCMTime
 from scipy import ndimage
 
 from dimos.msgs.geometry_msgs import Pose, Vector3, VectorLike
@@ -57,15 +59,15 @@ class OccupancyGrid(Timestamped):
     ts: float
     frame_id: str
     info: MapMetaData
-    grid: np.ndarray
+    grid: np.ndarray  # type: ignore[type-arg]
 
     def __init__(
         self,
-        grid: Optional[np.ndarray] = None,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
+        grid: np.ndarray | None = None,  # type: ignore[type-arg]
+        width: int | None = None,
+        height: int | None = None,
         resolution: float = 0.05,
-        origin: Optional[Pose] = None,
+        origin: Pose | None = None,
         frame_id: str = "world",
         ts: float = 0.0,
     ) -> None:
@@ -90,7 +92,7 @@ class OccupancyGrid(Timestamped):
                 raise ValueError("Grid must be a 2D array")
             height, width = grid.shape
             self.info = MapMetaData(
-                map_load_time=self._to_lcm_time(),
+                map_load_time=self._to_lcm_time(),  # type: ignore[no-untyped-call]
                 resolution=resolution,
                 width=width,
                 height=height,
@@ -100,7 +102,7 @@ class OccupancyGrid(Timestamped):
         elif width is not None and height is not None:
             # Initialize with dimensions
             self.info = MapMetaData(
-                map_load_time=self._to_lcm_time(),
+                map_load_time=self._to_lcm_time(),  # type: ignore[no-untyped-call]
                 resolution=resolution,
                 width=width,
                 height=height,
@@ -109,10 +111,10 @@ class OccupancyGrid(Timestamped):
             self.grid = np.full((height, width), -1, dtype=np.int8)
         else:
             # Initialize empty
-            self.info = MapMetaData(map_load_time=self._to_lcm_time())
+            self.info = MapMetaData(map_load_time=self._to_lcm_time())  # type: ignore[no-untyped-call]
             self.grid = np.array([], dtype=np.int8)
 
-    def _to_lcm_time(self):
+    def _to_lcm_time(self):  # type: ignore[no-untyped-def]
         """Convert timestamp to LCM Time."""
 
         s = int(self.ts)
@@ -121,22 +123,22 @@ class OccupancyGrid(Timestamped):
     @property
     def width(self) -> int:
         """Width of the grid in cells."""
-        return self.info.width
+        return self.info.width  # type: ignore[no-any-return]
 
     @property
     def height(self) -> int:
         """Height of the grid in cells."""
-        return self.info.height
+        return self.info.height  # type: ignore[no-any-return]
 
     @property
     def resolution(self) -> float:
         """Grid resolution in meters/cell."""
-        return self.info.resolution
+        return self.info.resolution  # type: ignore[no-any-return]
 
     @property
     def origin(self) -> Pose:
         """Origin pose of the grid."""
-        return self.info.origin
+        return self.info.origin  # type: ignore[no-any-return]
 
     @property
     def total_cells(self) -> int:
@@ -173,7 +175,7 @@ class OccupancyGrid(Timestamped):
         """Percentage of cells that are unknown."""
         return (self.unknown_cells / self.total_cells * 100) if self.total_cells > 0 else 0.0
 
-    def inflate(self, radius: float) -> "OccupancyGrid":
+    def inflate(self, radius: float) -> OccupancyGrid:
         """Inflate obstacles by a given radius (binary inflation).
         Args:
             radius: Inflation radius in meters
@@ -187,7 +189,7 @@ class OccupancyGrid(Timestamped):
         grid_array = self.grid
 
         # Create circular kernel for binary inflation
-        kernel_size = 2 * cell_radius + 1
+        2 * cell_radius + 1
         y, x = np.ogrid[-cell_radius : cell_radius + 1, -cell_radius : cell_radius + 1]
         kernel = (x**2 + y**2 <= cell_radius**2).astype(np.uint8)
 
@@ -297,10 +299,10 @@ class OccupancyGrid(Timestamped):
             lcm_msg.data_length = 0
             lcm_msg.data = []
 
-        return lcm_msg.lcm_encode()
+        return lcm_msg.lcm_encode()  # type: ignore[no-any-return]
 
     @classmethod
-    def lcm_decode(cls, data: bytes | BinaryIO) -> "OccupancyGrid":
+    def lcm_decode(cls, data: bytes | BinaryIO) -> OccupancyGrid:
         """Decode LCM bytes to OccupancyGrid."""
         lcm_msg = LCMOccupancyGrid.lcm_decode(data)
 
@@ -330,13 +332,13 @@ class OccupancyGrid(Timestamped):
     @classmethod
     def from_pointcloud(
         cls,
-        cloud: "PointCloud2",
+        cloud: PointCloud2,
         resolution: float = 0.05,
         min_height: float = 0.1,
         max_height: float = 2.0,
-        frame_id: Optional[str] = None,
+        frame_id: str | None = None,
         mark_free_radius: float = 0.4,
-    ) -> "OccupancyGrid":
+    ) -> OccupancyGrid:
         """Create an OccupancyGrid from a PointCloud2 message.
 
         Args:
@@ -462,7 +464,7 @@ class OccupancyGrid(Timestamped):
 
         return occupancy_grid
 
-    def gradient(self, obstacle_threshold: int = 50, max_distance: float = 2.0) -> "OccupancyGrid":
+    def gradient(self, obstacle_threshold: int = 50, max_distance: float = 2.0) -> OccupancyGrid:
         """Create a gradient OccupancyGrid for path planning.
 
         Creates a gradient where free space has value 0 and values increase near obstacles.
@@ -495,7 +497,7 @@ class OccupancyGrid(Timestamped):
         distance_cells = ndimage.distance_transform_edt(1 - obstacle_map)
 
         # Convert to meters and clip to max distance
-        distance_meters = np.clip(distance_cells * self.resolution, 0, max_distance)
+        distance_meters = np.clip(distance_cells * self.resolution, 0, max_distance)  # type: ignore[operator]
 
         # Invert and scale to 0-100 range
         # Far from obstacles (max_distance) -> 0
@@ -522,7 +524,7 @@ class OccupancyGrid(Timestamped):
 
         return gradient_grid
 
-    def filter_above(self, threshold: int) -> "OccupancyGrid":
+    def filter_above(self, threshold: int) -> OccupancyGrid:
         """Create a new OccupancyGrid with only values above threshold.
 
         Args:
@@ -553,7 +555,7 @@ class OccupancyGrid(Timestamped):
 
         return filtered
 
-    def filter_below(self, threshold: int) -> "OccupancyGrid":
+    def filter_below(self, threshold: int) -> OccupancyGrid:
         """Create a new OccupancyGrid with only values below threshold.
 
         Args:
@@ -584,7 +586,7 @@ class OccupancyGrid(Timestamped):
 
         return filtered
 
-    def max(self) -> "OccupancyGrid":
+    def max(self) -> OccupancyGrid:
         """Create a new OccupancyGrid with all non-unknown cells set to maximum value.
 
         Returns:

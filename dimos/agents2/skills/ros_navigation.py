@@ -13,15 +13,14 @@
 # limitations under the License.
 
 import time
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any
+
+from dimos.core.skill_module import SkillModule
 from dimos.msgs.geometry_msgs import PoseStamped
 from dimos.msgs.geometry_msgs.Vector3 import make_vector3
-from dimos.protocol.skill.skill import SkillContainer, skill
+from dimos.protocol.skill.skill import skill
 from dimos.utils.logging_config import setup_logger
 from dimos.utils.transform_utils import euler_to_quaternion
-from dimos.core.resource import Resource
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from dimos.robot.unitree_webrtc.unitree_g1 import UnitreeG1
@@ -29,11 +28,12 @@ if TYPE_CHECKING:
 logger = setup_logger(__file__)
 
 
-class RosNavigation(SkillContainer, Resource):
+# TODO: Remove, deprecated
+class RosNavigation(SkillModule):
     _robot: "UnitreeG1"
     _started: bool
 
-    def __init__(self, robot: "UnitreeG1"):
+    def __init__(self, robot: "UnitreeG1") -> None:
         self._robot = robot
         self._similarity_threshold = 0.23
         self._started = False
@@ -55,8 +55,6 @@ class RosNavigation(SkillContainer, Resource):
             query: Text query to search for in the semantic map
         """
 
-        print("X" * 10000)
-
         if not self._started:
             raise ValueError(f"{self} has not been started.")
 
@@ -67,7 +65,7 @@ class RosNavigation(SkillContainer, Resource):
         return "Failed to navigate."
 
     def _navigate_using_semantic_map(self, query: str) -> str:
-        results = self._robot.spatial_memory.query_by_text(query)
+        results = self._robot.spatial_memory.query_by_text(query)  # type: ignore[union-attr]
 
         if not results:
             return f"No matching location found in semantic map for '{query}'"
@@ -93,11 +91,11 @@ class RosNavigation(SkillContainer, Resource):
         if not self._started:
             raise ValueError(f"{self} has not been started.")
 
-        self._robot.cancel_navigation()
+        self._robot.cancel_navigation()  # type: ignore[attr-defined]
 
         return "Stopped"
 
-    def _get_goal_pose_from_result(self, result: dict[str, Any]) -> Optional[PoseStamped]:
+    def _get_goal_pose_from_result(self, result: dict[str, Any]) -> PoseStamped | None:
         similarity = 1.0 - (result.get("distance") or 1)
         if similarity < self._similarity_threshold:
             logger.warning(
@@ -120,3 +118,8 @@ class RosNavigation(SkillContainer, Resource):
             orientation=euler_to_quaternion(make_vector3(0, 0, theta)),
             frame_id="map",
         )
+
+
+ros_navigation_skill = RosNavigation.blueprint
+
+__all__ = ["RosNavigation", "ros_navigation_skill"]

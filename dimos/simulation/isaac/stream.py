@@ -12,17 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import cv2
-import time
-from typing import Optional, Union
 from pathlib import Path
-from ..base.stream_base import StreamBase, AnnotatorType, TransportType
+import time
+
+import cv2
+
+from ..base.stream_base import AnnotatorType, StreamBase, TransportType
 
 
 class IsaacStream(StreamBase):
     """Isaac Sim stream implementation."""
 
-    def __init__(
+    def __init__(  # type: ignore[no-untyped-def]
         self,
         simulator,
         width: int = 1920,
@@ -32,8 +33,8 @@ class IsaacStream(StreamBase):
         annotator_type: AnnotatorType = "rgb",
         transport: TransportType = "tcp",
         rtsp_url: str = "rtsp://mediamtx:8554/stream",
-        usd_path: Optional[Union[str, Path]] = None,
-    ):
+        usd_path: str | Path | None = None,
+    ) -> None:
         """Initialize the Isaac Sim stream."""
         super().__init__(
             simulator=simulator,
@@ -48,20 +49,20 @@ class IsaacStream(StreamBase):
         )
 
         # Import omni.replicator after SimulationApp initialization
-        import omni.replicator.core as rep
+        import omni.replicator.core as rep  # type: ignore[import-not-found]
 
         self.rep = rep
 
         # Initialize components
         if usd_path:
             self._load_stage(usd_path)
-        self._setup_camera()
+        self._setup_camera()  # type: ignore[no-untyped-call]
         self._setup_ffmpeg()
         self._setup_annotator()
 
-    def _load_stage(self, usd_path: Union[str, Path]):
+    def _load_stage(self, usd_path: str | Path):  # type: ignore[no-untyped-def]
         """Load USD stage from file."""
-        import omni.usd
+        import omni.usd  # type: ignore[import-not-found]
 
         abs_path = str(Path(usd_path).resolve())
         omni.usd.get_context().open_stage(abs_path)
@@ -69,7 +70,7 @@ class IsaacStream(StreamBase):
         if not self.stage:
             raise RuntimeError(f"Failed to load stage: {abs_path}")
 
-    def _setup_camera(self):
+    def _setup_camera(self):  # type: ignore[no-untyped-def]
         """Setup and validate camera."""
         self.stage = self.simulator.get_stage()
         camera_prim = self.stage.GetPrimAtPath(self.camera_path)
@@ -80,12 +81,12 @@ class IsaacStream(StreamBase):
             self.camera_path, resolution=(self.width, self.height)
         )
 
-    def _setup_annotator(self):
+    def _setup_annotator(self) -> None:
         """Setup the specified annotator."""
         self.annotator = self.rep.AnnotatorRegistry.get_annotator(self.annotator_type)
         self.annotator.attach(self.render_product)
 
-    def stream(self):
+    def stream(self) -> None:
         """Start the streaming loop."""
         try:
             print("[Stream] Starting camera stream loop...")
@@ -105,8 +106,8 @@ class IsaacStream(StreamBase):
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
 
                 # Write to FFmpeg
-                self.proc.stdin.write(frame.tobytes())
-                self.proc.stdin.flush()
+                self.proc.stdin.write(frame.tobytes())  # type: ignore[attr-defined]
+                self.proc.stdin.flush()  # type: ignore[attr-defined]
 
                 # Log metrics
                 frame_time = time.time() - frame_start
@@ -125,12 +126,12 @@ class IsaacStream(StreamBase):
         finally:
             self.cleanup()
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Cleanup resources."""
         print("[Cleanup] Stopping FFmpeg process...")
         if hasattr(self, "proc"):
-            self.proc.stdin.close()
-            self.proc.wait()
+            self.proc.stdin.close()  # type: ignore[attr-defined]
+            self.proc.wait()  # type: ignore[attr-defined]
         print("[Cleanup] Closing simulation...")
         self.simulator.close()
         print("[Cleanup] Successfully cleaned up resources")

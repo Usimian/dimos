@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import threading
-import time
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
+import threading
+import time
 
 import lcm
 
@@ -45,22 +45,22 @@ def human_readable_bytes(bytes_value: float, round_to: int = 2) -> tuple[float, 
 class Topic:
     history_window: float = 60.0
 
-    def __init__(self, name: str, history_window: float = 60.0):
+    def __init__(self, name: str, history_window: float = 60.0) -> None:
         self.name = name
         # Store (timestamp, data_size) tuples for statistics
-        self.message_history = deque()
+        self.message_history = deque()  # type: ignore[var-annotated]
         self.history_window = history_window
         # Total traffic accumulator (doesn't get cleaned up)
         self.total_traffic_bytes = 0
 
-    def msg(self, data: bytes):
+    def msg(self, data: bytes) -> None:
         # print(f"> msg {self.__str__()} {len(data)} bytes")
         datalen = len(data)
         self.message_history.append((time.time(), datalen))
         self.total_traffic_bytes += datalen
         self._cleanup_old_messages()
 
-    def _cleanup_old_messages(self, max_age: float = None):
+    def _cleanup_old_messages(self, max_age: float | None = None) -> None:
         """Remove messages older than max_age seconds"""
         current_time = time.time()
         while self.message_history and current_time - self.message_history[0][0] > (
@@ -68,7 +68,7 @@ class Topic:
         ):
             self.message_history.popleft()
 
-    def _get_messages_in_window(self, time_window: float):
+    def _get_messages_in_window(self, time_window: float):  # type: ignore[no-untyped-def]
         """Get messages within the specified time window"""
         current_time = time.time()
         cutoff_time = current_time - time_window
@@ -88,7 +88,7 @@ class Topic:
             return 0.0
         total_bytes = sum(size for _, size in messages)
         total_kbytes = total_bytes / 1000  # Convert bytes to kB
-        return total_kbytes / time_window
+        return total_kbytes / time_window  # type: ignore[no-any-return]
 
     def kbps_hr(self, time_window: float, round_to: int = 2) -> tuple[float, BandwidthUnit]:
         """Return human-readable bandwidth with appropriate units"""
@@ -103,7 +103,7 @@ class Topic:
         if not messages:
             return 0.0
         total_size = sum(size for _, size in messages)
-        return total_size / len(messages)
+        return total_size / len(messages)  # type: ignore[no-any-return]
 
     def total_traffic(self) -> int:
         """Return total traffic passed in bytes since the beginning"""
@@ -114,7 +114,7 @@ class Topic:
         total_bytes = self.total_traffic()
         return human_readable_bytes(total_bytes)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"topic({self.name})"
 
 
@@ -129,38 +129,39 @@ class LCMSpy(LCMService, Topic):
     graph_log_window: float = 1.0
     topic_class: type[Topic] = Topic
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:  # type: ignore[no-untyped-def]
         super().__init__(**kwargs)
-        Topic.__init__(self, name="total", history_window=self.config.topic_history_window)
-        self.topic = {}
+        Topic.__init__(self, name="total", history_window=self.config.topic_history_window)  # type: ignore[attr-defined]
+        self.topic = {}  # type: ignore[assignment]
         self.l = lcm.LCM(self.config.url) if self.config.url else lcm.LCM()
 
-    def start(self):
+    def start(self) -> None:
         super().start()
-        self.l.subscribe(".*", self.msg)
+        self.l.subscribe(".*", self.msg)  # type: ignore[union-attr]
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the LCM spy and clean up resources"""
         super().stop()
 
-    def msg(self, topic, data):
+    def msg(self, topic, data) -> None:  # type: ignore[no-untyped-def, override]
         Topic.msg(self, data)
 
-        if topic not in self.topic:
+        if topic not in self.topic:  # type: ignore[operator]
             print(self.config)
-            self.topic[topic] = self.topic_class(
-                topic, history_window=self.config.topic_history_window
+            self.topic[topic] = self.topic_class(  # type: ignore[assignment, call-arg]
+                topic,
+                history_window=self.config.topic_history_window,  # type: ignore[attr-defined]
             )
-        self.topic[topic].msg(data)
+        self.topic[topic].msg(data)  # type: ignore[attr-defined, type-arg]
 
 
 class GraphTopic(Topic):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         super().__init__(*args, **kwargs)
-        self.freq_history = deque(maxlen=20)
-        self.bandwidth_history = deque(maxlen=20)
+        self.freq_history = deque(maxlen=20)  # type: ignore[var-annotated]
+        self.bandwidth_history = deque(maxlen=20)  # type: ignore[var-annotated]
 
-    def update_graphs(self, step_window: float = 1.0):
+    def update_graphs(self, step_window: float = 1.0) -> None:
         """Update historical data for graphing"""
         freq = self.freq(step_window)
         kbps = self.kbps(step_window)
@@ -180,23 +181,23 @@ class GraphLCMSpy(LCMSpy, GraphTopic):
     graph_log_stop_event: threading.Event = threading.Event()
     topic_class: type[Topic] = GraphTopic
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:  # type: ignore[no-untyped-def]
         super().__init__(**kwargs)
-        GraphTopic.__init__(self, name="total", history_window=self.config.topic_history_window)
+        GraphTopic.__init__(self, name="total", history_window=self.config.topic_history_window)  # type: ignore[attr-defined]
 
-    def start(self):
+    def start(self) -> None:
         super().start()
         self.graph_log_thread = threading.Thread(target=self.graph_log, daemon=True)
         self.graph_log_thread.start()
 
-    def graph_log(self):
+    def graph_log(self) -> None:
         while not self.graph_log_stop_event.is_set():
-            self.update_graphs(self.config.graph_log_window)  # Update global history
-            for topic in self.topic.values():
-                topic.update_graphs(self.config.graph_log_window)
-            time.sleep(self.config.graph_log_window)
+            self.update_graphs(self.config.graph_log_window)  # type: ignore[attr-defined]  # Update global history
+            for topic in self.topic.values():  # type: ignore[call-arg]
+                topic.update_graphs(self.config.graph_log_window)  # type: ignore[attr-defined]
+            time.sleep(self.config.graph_log_window)  # type: ignore[attr-defined]
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the graph logging and LCM spy"""
         self.graph_log_stop_event.set()
         if self.graph_log_thread and self.graph_log_thread.is_alive():

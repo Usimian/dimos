@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, List, Tuple, Literal
+from typing import Literal
+
 from pydantic import Field
 
 from dimos.skills.manipulation.abstract_manipulation_skill import AbstractManipulationSkill
-from dimos.skills.skills import AbstractRobotSkill
-from dimos.types.manipulation import TranslationConstraint, Vector
+from dimos.types.manipulation import TranslationConstraint, Vector  # type: ignore[attr-defined]
 from dimos.utils.logging_config import setup_logger
 
 # Initialize logger
@@ -37,19 +37,19 @@ class TranslationConstraintSkill(AbstractManipulationSkill):
         "x", description="Axis to translate along: 'x', 'y', or 'z'"
     )
 
-    reference_point: Optional[Tuple[float, float]] = Field(
+    reference_point: tuple[float, float] | None = Field(
         None, description="Reference point (x,y) on the target object for translation constraining"
     )
 
-    bounds_min: Optional[Tuple[float, float]] = Field(
+    bounds_min: tuple[float, float] | None = Field(
         None, description="Minimum bounds (x,y) for bounded translation"
     )
 
-    bounds_max: Optional[Tuple[float, float]] = Field(
+    bounds_max: tuple[float, float] | None = Field(
         None, description="Maximum bounds (x,y) for bounded translation"
     )
 
-    target_point: Optional[Tuple[float, float]] = Field(
+    target_point: tuple[float, float] | None = Field(
         None, description="Final target position (x,y) for translation constraining"
     )
 
@@ -66,22 +66,22 @@ class TranslationConstraintSkill(AbstractManipulationSkill):
         # Create reference point vector if provided (convert 2D point to 3D vector with z=0)
         reference_point = None
         if self.reference_point:
-            reference_point = Vector(self.reference_point[0], self.reference_point[1], 0.0)
+            reference_point = Vector(self.reference_point[0], self.reference_point[1], 0.0)  # type: ignore[arg-type]
 
         # Create bounds minimum vector if provided
         bounds_min = None
         if self.bounds_min:
-            bounds_min = Vector(self.bounds_min[0], self.bounds_min[1], 0.0)
+            bounds_min = Vector(self.bounds_min[0], self.bounds_min[1], 0.0)  # type: ignore[arg-type]
 
         # Create bounds maximum vector if provided
         bounds_max = None
         if self.bounds_max:
-            bounds_max = Vector(self.bounds_max[0], self.bounds_max[1], 0.0)
+            bounds_max = Vector(self.bounds_max[0], self.bounds_max[1], 0.0)  # type: ignore[arg-type]
 
         # Create relative target vector if provided
         target_point = None
         if self.target_point:
-            target_point = Vector(self.target_point[0], self.target_point[1], 0.0)
+            target_point = Vector(self.target_point[0], self.target_point[1], 0.0)  # type: ignore[arg-type]
 
         constraint = TranslationConstraint(
             translation_axis=self.translation_axis,
@@ -92,9 +92,9 @@ class TranslationConstraintSkill(AbstractManipulationSkill):
         )
 
         # Add constraint to manipulation interface
-        self.manipulation_interface.add_constraint(constraint)
+        self.manipulation_interface.add_constraint(constraint)  # type: ignore[union-attr]
 
         # Log the constraint creation
         logger.info(f"Generated translation constraint along {self.translation_axis} axis")
 
-        return {"success": True}
+        return {"success": True}  # type: ignore[return-value]

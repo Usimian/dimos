@@ -18,35 +18,28 @@
 Navigator module for coordinating global and local planning.
 """
 
+from collections.abc import Callable
 import threading
 import time
-from enum import Enum
-from typing import Callable, Optional
 
-from dimos.core import Module, In, Out, rpc
+from dimos_lcm.std_msgs import Bool, String  # type: ignore[import-untyped]
+from reactivex.disposable import Disposable
+
+from dimos.core import In, Module, Out, rpc
+from dimos.core.rpc_client import RpcCall
 from dimos.msgs.geometry_msgs import PoseStamped
 from dimos.msgs.nav_msgs import OccupancyGrid
-from dimos_lcm.std_msgs import String
+from dimos.navigation.base import NavigationInterface, NavigationState
 from dimos.navigation.bt_navigator.goal_validator import find_safe_goal
 from dimos.navigation.bt_navigator.recovery_server import RecoveryServer
-from reactivex.disposable import Disposable
 from dimos.protocol.tf import TF
 from dimos.utils.logging_config import setup_logger
-from dimos_lcm.std_msgs import Bool
 from dimos.utils.transform_utils import apply_transform
 
-logger = setup_logger("dimos.navigation.bt_navigator")
+logger = setup_logger(__file__)
 
 
-class NavigatorState(Enum):
-    """Navigator state machine states."""
-
-    IDLE = "idle"
-    FOLLOWING_PATH = "following_path"
-    RECOVERY = "recovery"
-
-
-class BehaviorTreeNavigator(Module):
+class BehaviorTreeNavigator(Module, NavigationInterface):
     """
     Navigator module for coordinating navigation tasks.
 
@@ -61,22 +54,22 @@ class BehaviorTreeNavigator(Module):
     """
 
     # LCM inputs
-    odom: In[PoseStamped] = None
-    goal_request: In[PoseStamped] = None  # Input for receiving goal requests
-    global_costmap: In[OccupancyGrid] = None
+    odom: In[PoseStamped] = None  # type: ignore[assignment]
+    goal_request: In[PoseStamped] = None  # type: ignore[assignment]  # Input for receiving goal requests
+    global_costmap: In[OccupancyGrid] = None  # type: ignore[assignment]
 
     # LCM outputs
-    target: Out[PoseStamped] = None
-    goal_reached: Out[Bool] = None
-    navigation_state: Out[String] = None
+    target: Out[PoseStamped] = None  # type: ignore[assignment]
+    goal_reached: Out[Bool] = None  # type: ignore[assignment]
+    navigation_state: Out[String] = None  # type: ignore[assignment]
 
-    def __init__(
+    def __init__(  # type: ignore[no-untyped-def]
         self,
         publishing_frequency: float = 1.0,
-        reset_local_planner: Callable[[], None] = None,
-        check_goal_reached: Callable[[], bool] = None,
+        reset_local_planner: Callable[[], None] | None = None,
+        check_goal_reached: Callable[[], bool] | None = None,
         **kwargs,
-    ):
+    ) -> None:
         """Initialize the Navigator.
 
         Args:
@@ -90,23 +83,23 @@ class BehaviorTreeNavigator(Module):
         self.publishing_period = 1.0 / publishing_frequency
 
         # State machine
-        self.state = NavigatorState.IDLE
+        self.state = NavigationState.IDLE
         self.state_lock = threading.Lock()
 
         # Current goal
-        self.current_goal: Optional[PoseStamped] = None
-        self.original_goal: Optional[PoseStamped] = None
+        self.current_goal: PoseStamped | None = None
+        self.original_goal: PoseStamped | None = None
         self.goal_lock = threading.Lock()
 
         # Goal reached state
         self._goal_reached = False
 
         # Latest data
-        self.latest_odom: Optional[PoseStamped] = None
-        self.latest_costmap: Optional[OccupancyGrid] = None
+        self.latest_odom: PoseStamped | None = None
+        self.latest_costmap: OccupancyGrid | None = None
 
         # Control thread
-        self.control_thread: Optional[threading.Thread] = None
+        self.control_thread: threading.Thread | None = None
         self.stop_event = threading.Event()
 
         # TF listener
@@ -122,7 +115,17 @@ class BehaviorTreeNavigator(Module):
         logger.info("Navigator initialized with stuck detection")
 
     @rpc
-    def start(self):
+    def set_HolonomicLocalPlanner_reset(self, callable: RpcCall) -> None:
+        self.reset_local_planner = callable
+        self.reset_local_planner.set_rpc(self.rpc)  # type: ignore[arg-type]
+
+    @rpc
+    def set_HolonomicLocalPlanner_is_goal_reached(self, callable: RpcCall) -> None:
+        self.check_goal_reached = callable
+        self.check_goal_reached.set_rpc(self.rpc)  # type: ignore[arg-type]
+
+    @rpc
+    def start(self) -> None:
         super().start()
 
         # Subscribe to inputs
@@ -189,34 +192,38 @@ class BehaviorTreeNavigator(Module):
         self._goal_reached = False
 
         with self.state_lock:
-            self.state = NavigatorState.FOLLOWING_PATH
+            self.state = NavigationState.FOLLOWING_PATH
 
         return True
 
     @rpc
-    def get_state(self) -> NavigatorState:
+    def get_state(self) -> NavigationState:
         """Get the current state of the navigator."""
         return self.state
 
-    def _on_odom(self, msg: PoseStamped):
+    def _on_odom(self, msg: PoseStamped) -> None:
         """Handle incoming odometry messages."""
         self.latest_odom = msg
 
-        if self.state == NavigatorState.FOLLOWING_PATH:
+        if self.state == NavigationState.FOLLOWING_PATH:
             self.recovery_server.update_odom(msg)
 
-    def _on_goal_request(self, msg: PoseStamped):
+    def _on_goal_request(self, msg: PoseStamped) -> None:
         """Handle incoming goal requests."""
         self.set_goal(msg)
 
-    def _on_costmap(self, msg: OccupancyGrid):
+    def _on_costmap(self, msg: OccupancyGrid) -> None:
         """Handle incoming costmap messages."""
         self.latest_costmap = msg
 
-    def _transform_goal_to_odom_frame(self, goal: PoseStamped) -> Optional[PoseStamped]:
+    def _transform_goal_to_odom_frame(self, goal: PoseStamped) -> PoseStamped | None:
         """Transform goal pose to the odometry frame."""
         if not goal.frame_id:
             return goal
+
+        if not self.latest_odom:
+            logger.error("No odometry data available to transform goal")
+            return None
 
         odom_frame = self.latest_odom.frame_id
         if goal.frame_id == odom_frame:
@@ -246,7 +253,7 @@ class BehaviorTreeNavigator(Module):
                     )
                     return None
 
-            pose = apply_transform(goal, transform)
+            pose = apply_transform(goal, transform)  # type: ignore[arg-type]
             transformed_goal = PoseStamped(
                 position=pose.position,
                 orientation=pose.orientation,
@@ -259,14 +266,14 @@ class BehaviorTreeNavigator(Module):
             logger.error(f"Failed to transform goal: {e}")
             return None
 
-    def _control_loop(self):
+    def _control_loop(self) -> None:
         """Main control loop running in separate thread."""
         while not self.stop_event.is_set():
             with self.state_lock:
                 current_state = self.state
-                self.navigation_state.publish(String(data=current_state.value))
+                self.navigation_state.publish(String(data=current_state.value))  # type: ignore[no-untyped-call]
 
-            if current_state == NavigatorState.FOLLOWING_PATH:
+            if current_state == NavigationState.FOLLOWING_PATH:
                 with self.goal_lock:
                     goal = self.current_goal
                     original_goal = self.original_goal
@@ -283,7 +290,7 @@ class BehaviorTreeNavigator(Module):
                     # Find safe goal position
                     safe_goal_pos = find_safe_goal(
                         costmap,
-                        original_goal.position,
+                        original_goal.position,  # type: ignore[union-attr]
                         algorithm="bfs",
                         cost_threshold=60,
                         min_clearance=0.25,
@@ -298,24 +305,24 @@ class BehaviorTreeNavigator(Module):
                             frame_id=goal.frame_id,
                             ts=goal.ts,
                         )
-                        self.target.publish(safe_goal)
+                        self.target.publish(safe_goal)  # type: ignore[no-untyped-call]
                         self.current_goal = safe_goal
                     else:
                         logger.warning("Could not find safe goal position, cancelling goal")
                         self.cancel_goal()
 
                     # Check if goal is reached
-                    if self.check_goal_reached():
+                    if self.check_goal_reached():  # type: ignore[misc]
                         reached_msg = Bool()
                         reached_msg.data = True
-                        self.goal_reached.publish(reached_msg)
+                        self.goal_reached.publish(reached_msg)  # type: ignore[no-untyped-call]
                         self.stop_navigation()
                         self._goal_reached = True
                         logger.info("Goal reached, resetting local planner")
 
-            elif current_state == NavigatorState.RECOVERY:
+            elif current_state == NavigationState.RECOVERY:
                 with self.state_lock:
-                    self.state = NavigatorState.IDLE
+                    self.state = NavigationState.IDLE
 
             time.sleep(self.publishing_period)
 
@@ -336,9 +343,14 @@ class BehaviorTreeNavigator(Module):
         self._goal_reached = False
 
         with self.state_lock:
-            self.state = NavigatorState.IDLE
+            self.state = NavigationState.IDLE
 
-        self.reset_local_planner()
+        self.reset_local_planner()  # type: ignore[misc]
         self.recovery_server.reset()  # Reset recovery server when stopping
 
         logger.info("Navigator stopped")
+
+
+behavior_tree_navigator = BehaviorTreeNavigator.blueprint
+
+__all__ = ["BehaviorTreeNavigator", "behavior_tree_navigator"]

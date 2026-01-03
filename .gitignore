@@ -8,6 +8,7 @@ __pycache__/
 *venv*/
 .venv*/
 .ssh/
+.direnv/
 
 # Ignore python tooling dirs
 *.egg-info/
@@ -48,7 +49,11 @@ yolo11n.pt
 
 # symlink one of .envrc.* if you'd like to use
 .envrc
+.claude
 
 # VR SSL Certificates
+dimos/vr/certificates/*.pem
+dimos/vr/certificates/*.key
+dimos/vr/__pycache__/
 assets/vr/certificates/*.pem
 assets/vr/certificates/*.key

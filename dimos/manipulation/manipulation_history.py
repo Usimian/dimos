@@ -28,20 +28,16 @@
 
 """Module for manipulation history tracking and search."""
 
-from typing import Dict, List, Optional, Any, Tuple, Union, Set, Callable
 from dataclasses import dataclass, field
-import time
 from datetime import datetime
-import os
 import json
+import os
 import pickle
-import uuid
+import time
+from typing import Any
 
 from dimos.types.manipulation import (
     ManipulationTask,
-    AbstractConstraint,
-    ManipulationTaskConstraint,
-    ManipulationMetadata,
 )
 from dimos.utils.logging_config import setup_logger
 
@@ -61,8 +57,8 @@ class ManipulationHistoryEntry:
 
     task: ManipulationTask
     timestamp: float = field(default_factory=time.time)
-    result: Dict[str, Any] = field(default_factory=dict)
-    manipulation_response: Optional[str] = (
+    result: dict[str, Any] = field(default_factory=dict)
+    manipulation_response: str | None = (
         None  # Any elaborative response from the motion planner / manipulation executor
     )
 
@@ -78,14 +74,14 @@ class ManipulationHistory:
     focusing on quick lookups and flexible search capabilities.
     """
 
-    def __init__(self, output_dir: str = None, new_memory: bool = False):
+    def __init__(self, output_dir: str | None = None, new_memory: bool = False) -> None:
         """Initialize a new manipulation history.
 
         Args:
             output_dir: Directory to save history to
             new_memory: If True, creates a new memory instead of loading existing one
         """
-        self._history: List[ManipulationHistoryEntry] = []
+        self._history: list[ManipulationHistoryEntry] = []
         self._output_dir = output_dir
 
         if output_dir and not new_memory:
@@ -192,7 +188,7 @@ class ManipulationHistory:
         except Exception as e:
             logger.error(f"Failed to load history: {e}")
 
-    def get_all_entries(self) -> List[ManipulationHistoryEntry]:
+    def get_all_entries(self) -> list[ManipulationHistoryEntry]:
         """Get all entries in chronological order.
 
         Returns:
@@ -200,7 +196,7 @@ class ManipulationHistory:
         """
         return self._history.copy()
 
-    def get_entry_by_index(self, index: int) -> Optional[ManipulationHistoryEntry]:
+    def get_entry_by_index(self, index: int) -> ManipulationHistoryEntry | None:
         """Get an entry by its index.
 
         Args:
@@ -215,7 +211,7 @@ class ManipulationHistory:
 
     def get_entries_by_timerange(
         self, start_time: float, end_time: float
-    ) -> List[ManipulationHistoryEntry]:
+    ) -> list[ManipulationHistoryEntry]:
         """Get entries within a specific time range.
 
         Args:
@@ -227,7 +223,7 @@ class ManipulationHistory:
         """
         return [entry for entry in self._history if start_time <= entry.timestamp <= end_time]
 
-    def get_entries_by_object(self, object_name: str) -> List[ManipulationHistoryEntry]:
+    def get_entries_by_object(self, object_name: str) -> list[ManipulationHistoryEntry]:
         """Get entries related to a specific object.
 
         Args:
@@ -239,7 +235,10 @@ class ManipulationHistory:
         return [entry for entry in self._history if entry.task.target_object == object_name]
 
     def create_task_entry(
-        self, task: ManipulationTask, result: Dict[str, Any] = None, agent_response: str = None
+        self,
+        task: ManipulationTask,
+        result: dict[str, Any] | None = None,
+        agent_response: str | None = None,
     ) -> ManipulationHistoryEntry:
         """Create a new manipulation history entry.
 
@@ -257,7 +256,7 @@ class ManipulationHistory:
         self.add_entry(entry)
         return entry
 
-    def search(self, **kwargs) -> List[ManipulationHistoryEntry]:
+    def search(self, **kwargs) -> list[ManipulationHistoryEntry]:  # type: ignore[no-untyped-def]
         """Flexible search method that can search by any field in ManipulationHistoryEntry using dot notation.
 
         This method supports dot notation to access nested fields. String values automatically use
@@ -295,7 +294,7 @@ class ManipulationHistory:
 
         return results
 
-    def _check_field_match(self, entry, field_path, value) -> bool:
+    def _check_field_match(self, entry, field_path, value) -> bool:  # type: ignore[no-untyped-def]
         """Check if a field matches the value, with special handling for strings, collections and comparisons.
 
         For string values, we automatically use substring matching (contains).
@@ -316,19 +315,19 @@ class ManipulationHistory:
             True if the field matches the value, False otherwise
         """
         try:
-            field_value = self._get_value_by_path(entry, field_path)
+            field_value = self._get_value_by_path(entry, field_path)  # type: ignore[no-untyped-call]
 
             # Handle comparison operators for timestamps and numbers
             if isinstance(value, tuple) and len(value) == 2:
                 op, compare_value = value
                 if op == ">":
-                    return field_value > compare_value
+                    return field_value > compare_value  # type: ignore[no-any-return]
                 elif op == "<":
-                    return field_value < compare_value
+                    return field_value < compare_value  # type: ignore[no-any-return]
                 elif op == ">=":
-                    return field_value >= compare_value
+                    return field_value >= compare_value  # type: ignore[no-any-return]
                 elif op == "<=":
-                    return field_value <= compare_value
+                    return field_value <= compare_value  # type: ignore[no-any-return]
 
             # Handle lists (from collection searches)
             if isinstance(field_value, list):
@@ -347,12 +346,12 @@ class ManipulationHistory:
                 return value in field_value
             # All other types use exact matching
             else:
-                return field_value == value
+                return field_value == value  # type: ignore[no-any-return]
 
         except (AttributeError, KeyError):
             return False
 
-    def _get_value_by_path(self, obj, path):
+    def _get_value_by_path(self, obj, path):  # type: ignore[no-untyped-def]
         """Get a value from an object using a dot-separated path.
 
         This method handles three special cases:
@@ -386,7 +385,7 @@ class ManipulationHistory:
                     if not remaining_path:  # If * is the last part, return all values
                         return list(items)
                 elif isinstance(current, list):
-                    items = current
+                    items = current  # type: ignore[assignment]
                     if not remaining_path:  # If * is the last part, return all items
                         return items
                 else:  # Not a collection
@@ -399,7 +398,7 @@ class ManipulationHistory:
                 for item in items:
                     try:
                         # Recursively get values from each item
-                        value = self._get_value_by_path(item, remaining_path)
+                        value = self._get_value_by_path(item, remaining_path)  # type: ignore[no-untyped-call]
                         if isinstance(value, list):  # Flatten nested lists
                             results.extend(value)
                         else:

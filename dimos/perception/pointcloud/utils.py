@@ -19,19 +19,21 @@ This module provides efficient utilities for creating and manipulating point clo
 from RGBD images using Open3D.
 """
 
-import numpy as np
-import yaml
 import os
+from typing import Any
+
 import cv2
-import open3d as o3d
-from typing import List, Optional, Tuple, Union, Dict, Any
+import numpy as np
+import open3d as o3d  # type: ignore[import-untyped]
 from scipy.spatial import cKDTree
+import yaml
+
 from dimos.perception.common.utils import project_3d_points_to_2d
 
 
 def load_camera_matrix_from_yaml(
-    camera_info: Optional[Union[str, List[float], np.ndarray, dict]],
-) -> Optional[np.ndarray]:
+    camera_info: str | list[float] | np.ndarray | dict | None,  # type: ignore[type-arg]
+) -> np.ndarray | None:  # type: ignore[type-arg]
     """
     Load camera intrinsic matrix from various input formats.
 
@@ -72,7 +74,7 @@ def load_camera_matrix_from_yaml(
             raise FileNotFoundError(f"Camera info file not found: {camera_info}")
 
         try:
-            with open(camera_info, "r") as f:
+            with open(camera_info) as f:
                 data = yaml.safe_load(f)
             return _extract_matrix_from_dict(data)
         except Exception as e:
@@ -83,7 +85,7 @@ def load_camera_matrix_from_yaml(
     )
 
 
-def _extract_matrix_from_dict(data: dict) -> np.ndarray:
+def _extract_matrix_from_dict(data: dict) -> np.ndarray:  # type: ignore[type-arg]
     """Extract camera matrix from dictionary with various formats."""
     # ROS format with 'K' field (most common)
     if "K" in data:
@@ -120,9 +122,9 @@ def _extract_matrix_from_dict(data: dict) -> np.ndarray:
 
 
 def create_o3d_point_cloud_from_rgbd(
-    color_img: np.ndarray,
-    depth_img: np.ndarray,
-    intrinsic: np.ndarray,
+    color_img: np.ndarray,  # type: ignore[type-arg]
+    depth_img: np.ndarray,  # type: ignore[type-arg]
+    intrinsic: np.ndarray,  # type: ignore[type-arg]
     depth_scale: float = 1.0,
     depth_trunc: float = 3.0,
 ) -> o3d.geometry.PointCloud:
@@ -197,13 +199,13 @@ def create_o3d_point_cloud_from_rgbd(
 
 
 def create_point_cloud_and_extract_masks(
-    color_img: np.ndarray,
-    depth_img: np.ndarray,
-    masks: List[np.ndarray],
-    intrinsic: np.ndarray,
+    color_img: np.ndarray,  # type: ignore[type-arg]
+    depth_img: np.ndarray,  # type: ignore[type-arg]
+    masks: list[np.ndarray],  # type: ignore[type-arg]
+    intrinsic: np.ndarray,  # type: ignore[type-arg]
     depth_scale: float = 1.0,
     depth_trunc: float = 3.0,
-) -> Tuple[o3d.geometry.PointCloud, List[o3d.geometry.PointCloud]]:
+) -> tuple[o3d.geometry.PointCloud, list[o3d.geometry.PointCloud]]:
     """
     Efficiently create a point cloud once and extract multiple masked regions.
 
@@ -267,7 +269,7 @@ def create_point_cloud_and_extract_masks(
 
 def filter_point_cloud_statistical(
     pcd: o3d.geometry.PointCloud, nb_neighbors: int = 20, std_ratio: float = 2.0
-) -> Tuple[o3d.geometry.PointCloud, np.ndarray]:
+) -> tuple[o3d.geometry.PointCloud, np.ndarray]:  # type: ignore[type-arg]
     """
     Apply statistical outlier filtering to point cloud.
 
@@ -282,12 +284,12 @@ def filter_point_cloud_statistical(
     if len(np.asarray(pcd.points)) == 0:
         return pcd, np.array([])
 
-    return pcd.remove_statistical_outlier(nb_neighbors=nb_neighbors, std_ratio=std_ratio)
+    return pcd.remove_statistical_outlier(nb_neighbors=nb_neighbors, std_ratio=std_ratio)  # type: ignore[no-any-return]
 
 
 def filter_point_cloud_radius(
     pcd: o3d.geometry.PointCloud, nb_points: int = 16, radius: float = 0.05
-) -> Tuple[o3d.geometry.PointCloud, np.ndarray]:
+) -> tuple[o3d.geometry.PointCloud, np.ndarray]:  # type: ignore[type-arg]
     """
     Apply radius-based outlier filtering to point cloud.
 
@@ -302,17 +304,17 @@ def filter_point_cloud_radius(
     if len(np.asarray(pcd.points)) == 0:
         return pcd, np.array([])
 
-    return pcd.remove_radius_outlier(nb_points=nb_points, radius=radius)
+    return pcd.remove_radius_outlier(nb_points=nb_points, radius=radius)  # type: ignore[no-any-return]
 
 
 def overlay_point_clouds_on_image(
-    base_image: np.ndarray,
-    point_clouds: List[o3d.geometry.PointCloud],
-    camera_intrinsics: Union[List[float], np.ndarray],
-    colors: List[Tuple[int, int, int]],
+    base_image: np.ndarray,  # type: ignore[type-arg]
+    point_clouds: list[o3d.geometry.PointCloud],
+    camera_intrinsics: list[float] | np.ndarray,  # type: ignore[type-arg]
+    colors: list[tuple[int, int, int]],
     point_size: int = 2,
     alpha: float = 0.7,
-) -> np.ndarray:
+) -> np.ndarray:  # type: ignore[type-arg]
     """
     Overlay multiple colored point clouds onto an image.
 
@@ -365,8 +367,8 @@ def overlay_point_clouds_on_image(
         color = colors[i % len(colors)]
 
         # Ensure color is a tuple of integers for OpenCV
-        if isinstance(color, (list, tuple, np.ndarray)):
-            color = tuple(int(c) for c in color[:3])
+        if isinstance(color, list | tuple | np.ndarray):
+            color = tuple(int(c) for c in color[:3])  # type: ignore[assignment]
         else:
             color = (255, 255, 255)
 
@@ -383,10 +385,10 @@ def overlay_point_clouds_on_image(
 
 
 def create_point_cloud_overlay_visualization(
-    base_image: np.ndarray,
-    objects: List[dict],
-    intrinsics: np.ndarray,
-) -> np.ndarray:
+    base_image: np.ndarray,  # type: ignore[type-arg]
+    objects: list[dict],  # type: ignore[type-arg]
+    intrinsics: np.ndarray,  # type: ignore[type-arg]
+) -> np.ndarray:  # type: ignore[type-arg]
     """
     Create a visualization showing object point clouds and bounding boxes overlaid on a base image.
 
@@ -409,7 +411,7 @@ def create_point_cloud_overlay_visualization(
             color = obj["color"]
             if isinstance(color, np.ndarray):
                 color = tuple(int(c) for c in color)
-            elif isinstance(color, (list, tuple)):
+            elif isinstance(color, list | tuple):
                 color = tuple(int(c) for c in color[:3])
             colors.append(color)
 
@@ -455,7 +457,7 @@ def create_point_cloud_overlay_visualization(
     return result
 
 
-def create_3d_bounding_box_corners(position, rotation, size):
+def create_3d_bounding_box_corners(position, rotation, size: int):  # type: ignore[no-untyped-def]
     """
     Create 8 corners of a 3D bounding box from position, rotation, and size.
 
@@ -502,9 +504,9 @@ def create_3d_bounding_box_corners(position, rotation, size):
     )
 
     # Get dimensions
-    width = size.get("width", 0.1)
-    height = size.get("height", 0.1)
-    depth = size.get("depth", 0.1)
+    width = size.get("width", 0.1)  # type: ignore[attr-defined]
+    height = size.get("height", 0.1)  # type: ignore[attr-defined]
+    depth = size.get("depth", 0.1)  # type: ignore[attr-defined]
 
     # Create 8 corners of the bounding box (before rotation)
     corners = np.array(
@@ -526,7 +528,7 @@ def create_3d_bounding_box_corners(position, rotation, size):
     return rotated_corners
 
 
-def draw_3d_bounding_box_on_image(image, corners_2d, color, thickness=2):
+def draw_3d_bounding_box_on_image(image, corners_2d, color, thickness: int = 2) -> None:  # type: ignore[no-untyped-def]
     """
     Draw a 3D bounding box on an image using projected 2D corners.
 
@@ -561,12 +563,12 @@ def draw_3d_bounding_box_on_image(image, corners_2d, color, thickness=2):
 
 def extract_and_cluster_misc_points(
     full_pcd: o3d.geometry.PointCloud,
-    all_objects: List[dict],
+    all_objects: list[dict],  # type: ignore[type-arg]
     eps: float = 0.03,
     min_points: int = 100,
     enable_filtering: bool = True,
     voxel_size: float = 0.02,
-) -> Tuple[List[o3d.geometry.PointCloud], o3d.geometry.VoxelGrid]:
+) -> tuple[list[o3d.geometry.PointCloud], o3d.geometry.VoxelGrid]:
     """
     Extract miscellaneous/background points and cluster them using DBSCAN.
 
@@ -726,7 +728,7 @@ def _create_voxel_grid_from_point_cloud(
 
 
 def _create_voxel_grid_from_clusters(
-    clusters: List[o3d.geometry.PointCloud], voxel_size: float = 0.02
+    clusters: list[o3d.geometry.PointCloud], voxel_size: float = 0.02
 ) -> o3d.geometry.VoxelGrid:
     """
     Create a voxel grid from multiple clustered point clouds.
@@ -761,7 +763,7 @@ def _create_voxel_grid_from_clusters(
 
 def _cluster_point_cloud_dbscan(
     pcd: o3d.geometry.PointCloud, eps: float = 0.05, min_points: int = 50
-) -> List[o3d.geometry.PointCloud]:
+) -> list[o3d.geometry.PointCloud]:
     """
     Cluster a point cloud using DBSCAN and return list of clustered point clouds.
 
@@ -811,7 +813,7 @@ def _cluster_point_cloud_dbscan(
         return [pcd]  # Return original point cloud as fallback
 
 
-def get_standard_coordinate_transform():
+def get_standard_coordinate_transform():  # type: ignore[no-untyped-def]
     """
     Get a standard coordinate transformation matrix for consistent visualization.
 
@@ -836,7 +838,7 @@ def get_standard_coordinate_transform():
 
 
 def visualize_clustered_point_clouds(
-    clustered_pcds: List[o3d.geometry.PointCloud],
+    clustered_pcds: list[o3d.geometry.PointCloud],
     window_name: str = "Clustered Point Clouds",
     point_size: float = 2.0,
     show_coordinate_frame: bool = True,
@@ -857,7 +859,7 @@ def visualize_clustered_point_clouds(
         return
 
     # Apply standard coordinate transformation
-    transform = get_standard_coordinate_transform()
+    transform = get_standard_coordinate_transform()  # type: ignore[no-untyped-call]
     geometries = []
     for pcd in clustered_pcds:
         pcd_copy = o3d.geometry.PointCloud(pcd)
@@ -917,7 +919,7 @@ def visualize_pcd(
         return
 
     # Apply standard coordinate transformation
-    transform = get_standard_coordinate_transform()
+    transform = get_standard_coordinate_transform()  # type: ignore[no-untyped-call]
     pcd_copy = o3d.geometry.PointCloud(pcd)
     pcd_copy.transform(transform)
     geometries = [pcd_copy]
@@ -980,7 +982,7 @@ def visualize_voxel_grid(
         coordinate_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
             size=coordinate_frame_size
         )
-        coordinate_frame.transform(get_standard_coordinate_transform())
+        coordinate_frame.transform(get_standard_coordinate_transform())  # type: ignore[no-untyped-call]
         geometries.append(coordinate_frame)
 
     print(f"Visualizing voxel grid with {len(voxel_grid.get_voxels())} voxels")
@@ -1000,8 +1002,8 @@ def visualize_voxel_grid(
 
 
 def combine_object_pointclouds(
-    point_clouds: Union[List[np.ndarray], List[o3d.geometry.PointCloud]],
-    colors: Optional[List[np.ndarray]] = None,
+    point_clouds: list[np.ndarray] | list[o3d.geometry.PointCloud],  # type: ignore[type-arg]
+    colors: list[np.ndarray] | None = None,  # type: ignore[type-arg]
 ) -> o3d.geometry.PointCloud:
     """
     Combine multiple point clouds into a single Open3D point cloud.
@@ -1026,8 +1028,8 @@ def combine_object_pointclouds(
             points = np.asarray(pcd.points)
             all_points.append(points)
             if pcd.has_colors():
-                colors = np.asarray(pcd.colors)
-                all_colors.append(colors)
+                colors = np.asarray(pcd.colors)  # type: ignore[assignment]
+                all_colors.append(colors)  # type: ignore[arg-type]
 
     if not all_points:
         return o3d.geometry.PointCloud()
@@ -1042,11 +1044,11 @@ def combine_object_pointclouds(
 
 
 def extract_centroids_from_masks(
-    rgb_image: np.ndarray,
-    depth_image: np.ndarray,
-    masks: List[np.ndarray],
-    camera_intrinsics: Union[List[float], np.ndarray],
-) -> List[Dict[str, Any]]:
+    rgb_image: np.ndarray,  # type: ignore[type-arg]
+    depth_image: np.ndarray,  # type: ignore[type-arg]
+    masks: list[np.ndarray],  # type: ignore[type-arg]
+    camera_intrinsics: list[float] | np.ndarray,  # type: ignore[type-arg]
+) -> list[dict[str, Any]]:
     """
     Extract 3D centroids and orientations from segmentation masks.
 
@@ -1067,10 +1069,10 @@ def extract_centroids_from_masks(
     if isinstance(camera_intrinsics, list) and len(camera_intrinsics) == 4:
         fx, fy, cx, cy = camera_intrinsics
     else:
-        fx = camera_intrinsics[0, 0]
-        fy = camera_intrinsics[1, 1]
-        cx = camera_intrinsics[0, 2]
-        cy = camera_intrinsics[1, 2]
+        fx = camera_intrinsics[0, 0]  # type: ignore[call-overload]
+        fy = camera_intrinsics[1, 1]  # type: ignore[call-overload]
+        cx = camera_intrinsics[0, 2]  # type: ignore[call-overload]
+        cy = camera_intrinsics[1, 2]  # type: ignore[call-overload]
 
     results = []
 

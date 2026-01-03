@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import argparse
+
 from ultralytics import YOLO, FastSAM
 
 
-def parse_args():
+def parse_args():  # type: ignore[no-untyped-def]
     parser = argparse.ArgumentParser(description="Export YOLO/FastSAM models to different formats")
     parser.add_argument("--model_path", type=str, required=True, help="Path to the model weights")
     parser.add_argument(
@@ -39,8 +40,8 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
+def main() -> None:
+    args = parse_args()  # type: ignore[no-untyped-call]
     half = args.precision == "fp16"
     int8 = args.precision == "int8"
     # Load the appropriate model

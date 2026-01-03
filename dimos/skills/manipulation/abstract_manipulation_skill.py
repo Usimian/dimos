@@ -14,11 +14,9 @@
 
 """Abstract base class for manipulation skills."""
 
-from typing import Optional
-
-from dimos.skills.skills import AbstractRobotSkill, Colors
-from dimos.robot.robot import Robot
 from dimos.manipulation.manipulation_interface import ManipulationInterface
+from dimos.robot.robot import Robot
+from dimos.skills.skills import AbstractRobotSkill
 from dimos.types.robot_capabilities import RobotCapability
 
 
@@ -28,7 +26,7 @@ class AbstractManipulationSkill(AbstractRobotSkill):
     This abstract class provides access to the robot's manipulation memory system.
     """
 
-    def __init__(self, *args, robot: Optional[Robot] = None, **kwargs):
+    def __init__(self, *args, robot: Robot | None = None, **kwargs) -> None:  # type: ignore[no-untyped-def]
         """Initialize the manipulation skill.
 
         Args:
@@ -36,13 +34,13 @@ class AbstractManipulationSkill(AbstractRobotSkill):
         """
         super().__init__(*args, robot=robot, **kwargs)
 
-        if self._robot and not self._robot.manipulation_interface:
+        if self._robot and not self._robot.manipulation_interface:  # type: ignore[attr-defined]
             raise NotImplementedError(
                 "This robot does not have a manipulation interface implemented"
             )
 
     @property
-    def manipulation_interface(self) -> Optional[ManipulationInterface]:
+    def manipulation_interface(self) -> ManipulationInterface | None:
         """Get the robot's manipulation interface.
 
         Returns:
@@ -57,4 +55,4 @@ class AbstractManipulationSkill(AbstractRobotSkill):
         if not self._robot.has_capability(RobotCapability.MANIPULATION):
             raise RuntimeError("This robot does not have manipulation capabilities")
 
-        return self._robot.manipulation_interface
+        return self._robot.manipulation_interface  # type: ignore[attr-defined, no-any-return]

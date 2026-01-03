@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Union
 from datetime import datetime
-from dimos_lcm import tf
+from typing import Union
+
+from dimos.msgs.geometry_msgs import Transform
 from dimos.protocol.service.lcmservice import LCMConfig, LCMService
-from dimos.protocol.tf.tf import TFSpec, TFConfig
-from dimos.msgs.geometry_msgs import Quaternion, Transform, Vector3
+from dimos.protocol.tf.tf import TFConfig, TFSpec
 
 
 # this doesn't work due to tf_lcm_py package
@@ -36,10 +36,10 @@ class TFLCM(TFSpec, LCMService):
 
     default_config = Union[TFConfig, LCMConfig]
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:  # type: ignore[no-untyped-def]
         super().__init__(**kwargs)
 
-        import tf_lcm_py as tf
+        import tf_lcm_py as tf  # type: ignore[import-not-found]
 
         self.l = tf.LCM()
         self.buffer = tf.Buffer(self.config.buffer_size)
@@ -58,12 +58,12 @@ class TFLCM(TFSpec, LCMService):
         for t in args:
             self.static_broadcaster.send_static_transform(t)
 
-    def lookup(
+    def lookup(  # type: ignore[no-untyped-def]
         self,
         parent_frame: str,
         child_frame: str,
-        time_point: Optional[float] = None,
-        time_tolerance: Optional[float] = None,
+        time_point: float | None = None,
+        time_tolerance: float | None = None,
     ):
         return self.buffer.lookup_transform(
             parent_frame,
@@ -73,7 +73,7 @@ class TFLCM(TFSpec, LCMService):
         )
 
     def can_transform(
-        self, parent_frame: str, child_frame: str, time_point: Optional[float | datetime] = None
+        self, parent_frame: str, child_frame: str, time_point: float | datetime | None = None
     ) -> bool:
         if not time_point:
             time_point = datetime.now()
@@ -81,13 +81,13 @@ class TFLCM(TFSpec, LCMService):
         if isinstance(time_point, float):
             time_point = datetime.fromtimestamp(time_point)
 
-        return self.buffer.can_transform(parent_frame, child_frame, time_point)
+        return self.buffer.can_transform(parent_frame, child_frame, time_point)  # type: ignore[no-any-return]
 
     def get_frames(self) -> set[str]:
         return set(self.buffer.get_all_frame_names())
 
-    def start(self):
+    def start(self) -> None:
         super().start()
         ...
 
-    def stop(self): ...
+    def stop(self) -> None: ...

@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import heapq
-import math
-from typing import Optional
 
 from dimos.msgs.geometry_msgs import PoseStamped, Quaternion, VectorLike
 from dimos.msgs.nav_msgs import CostValues, OccupancyGrid, Path
@@ -29,7 +27,7 @@ def astar(
     start: VectorLike = (0.0, 0.0),
     cost_threshold: int = 90,
     unknown_penalty: float = 0.8,
-) -> Optional[Path]:
+) -> Path | None:
     """
     A* path planning algorithm from start to goal position.
 
@@ -74,22 +72,22 @@ def astar(
     movement_costs = [sc, sc, sc, sc, dc, dc, dc, dc]
 
     # A* algorithm implementation
-    open_set = []  # Priority queue for nodes to explore
+    open_set = []  # type: ignore[var-annotated]  # Priority queue for nodes to explore
     closed_set = set()  # Set of explored nodes
 
     # Dictionary to store cost from start and parents for each node
     g_score = {start_tuple: 0}
-    parents = {}
+    parents = {}  # type: ignore[var-annotated]
 
     # Heuristic function (Octile distance for 8-connected grid)
-    def heuristic(x1, y1, x2, y2):
+    def heuristic(x1, y1, x2, y2):  # type: ignore[no-untyped-def]
         dx = abs(x2 - x1)
         dy = abs(y2 - y1)
         # Octile distance: optimal for 8-connected grids with diagonal movement
         return (dx + dy) + (dc - 2 * sc) * min(dx, dy)
 
     # Start with the starting node
-    f_score = g_score[start_tuple] + heuristic(
+    f_score = g_score[start_tuple] + heuristic(  # type: ignore[no-untyped-call]
         start_tuple[0], start_tuple[1], goal_tuple[0], goal_tuple[1]
     )
     heapq.heappush(open_set, (f_score, start_tuple))
@@ -99,7 +97,7 @@ def astar(
 
     while open_set:
         # Get the node with the lowest f_score
-        current_f, current = heapq.heappop(open_set)
+        _current_f, current = heapq.heappop(open_set)
         current_x, current_y = current
 
         # Remove from open set hash
@@ -202,8 +200,8 @@ def astar(
             if tentative_g_score < neighbor_g_score:
                 # Update the neighbor's scores and parent
                 parents[neighbor] = current
-                g_score[neighbor] = tentative_g_score
-                f_score = tentative_g_score + heuristic(
+                g_score[neighbor] = tentative_g_score  # type: ignore[assignment]
+                f_score = tentative_g_score + heuristic(  # type: ignore[no-untyped-call]
                     neighbor_x, neighbor_y, goal_tuple[0], goal_tuple[1]
                 )
 

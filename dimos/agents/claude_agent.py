@@ -23,21 +23,24 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 import anthropic
 from dotenv import load_dotenv
-from pydantic import BaseModel
-from reactivex import Observable
-from reactivex.scheduler import ThreadPoolScheduler
 
 # Local imports
 from dimos.agents.agent import LLMAgent
-from dimos.agents.memory.base import AbstractAgentSemanticMemory
-from dimos.agents.prompt_builder.impl import PromptBuilder
 from dimos.skills.skills import AbstractSkill, SkillLibrary
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.utils.logging_config import setup_logger
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
+    from reactivex import Observable
+    from reactivex.scheduler import ThreadPoolScheduler
+
+    from dimos.agents.memory.base import AbstractAgentSemanticMemory
+    from dimos.agents.prompt_builder.impl import PromptBuilder
 
 # Initialize environment variables
 load_dotenv()
@@ -48,13 +51,13 @@ logger = setup_logger("dimos.agents.claude")
 
 # Response object compatible with LLMAgent
 class ResponseMessage:
-    def __init__(self, content="", tool_calls=None, thinking_blocks=None):
+    def __init__(self, content: str = "", tool_calls=None, thinking_blocks=None) -> None:  # type: ignore[no-untyped-def]
         self.content = content
         self.tool_calls = tool_calls or []
         self.thinking_blocks = thinking_blocks or []
         self.parsed = None
 
-    def __str__(self):
+    def __str__(self) -> str:
         # Return a string representation for logging
         parts = []
 
@@ -82,26 +85,26 @@ class ClaudeAgent(LLMAgent):
         dev_name: str,
         agent_type: str = "Vision",
         query: str = "What do you see?",
-        input_query_stream: Optional[Observable] = None,
-        input_video_stream: Optional[Observable] = None,
-        input_data_stream: Optional[Observable] = None,
+        input_query_stream: Observable | None = None,  # type: ignore[type-arg]
+        input_video_stream: Observable | None = None,  # type: ignore[type-arg]
+        input_data_stream: Observable | None = None,  # type: ignore[type-arg]
         output_dir: str = os.path.join(os.getcwd(), "assets", "agent"),
-        agent_memory: Optional[AbstractAgentSemanticMemory] = None,
-        system_query: Optional[str] = None,
+        agent_memory: AbstractAgentSemanticMemory | None = None,
+        system_query: str | None = None,
         max_input_tokens_per_request: int = 128000,
         max_output_tokens_per_request: int = 16384,
         model_name: str = "claude-3-7-sonnet-20250219",
-        prompt_builder: Optional[PromptBuilder] = None,
+        prompt_builder: PromptBuilder | None = None,
         rag_query_n: int = 4,
         rag_similarity_threshold: float = 0.45,
-        skills: Optional[AbstractSkill] = None,
-        response_model: Optional[BaseModel] = None,
-        frame_processor: Optional[FrameProcessor] = None,
+        skills: AbstractSkill | None = None,
+        response_model: BaseModel | None = None,
+        frame_processor: FrameProcessor | None = None,
         image_detail: str = "low",
-        pool_scheduler: Optional[ThreadPoolScheduler] = None,
-        process_all_inputs: Optional[bool] = None,
-        thinking_budget_tokens: Optional[int] = 2000,
-    ):
+        pool_scheduler: ThreadPoolScheduler | None = None,
+        process_all_inputs: bool | None = None,
+        thinking_budget_tokens: int | None = 2000,
+    ) -> None:
         """
         Initializes a new instance of the ClaudeAgent.
 
@@ -155,7 +158,7 @@ class ClaudeAgent(LLMAgent):
 
         # Claude-specific parameters
         self.thinking_budget_tokens = thinking_budget_tokens
-        self.claude_api_params = {}  # Will store params for Claude API calls
+        self.claude_api_params = {}  # type: ignore[var-annotated]  # Will store params for Claude API calls
 
         # Configure skills
         self.skills = skills
@@ -192,7 +195,7 @@ class ClaudeAgent(LLMAgent):
 
         logger.info("Claude Agent Initialized.")
 
-    def _add_context_to_memory(self):
+    def _add_context_to_memory(self) -> None:
         """Adds initial context to the agent's memory."""
         context_data = [
             (
@@ -214,9 +217,9 @@ class ClaudeAgent(LLMAgent):
             ),
         ]
         for doc_id, text in context_data:
-            self.agent_memory.add_vector(doc_id, text)
+            self.agent_memory.add_vector(doc_id, text)  # type: ignore[no-untyped-call]
 
-    def _convert_tools_to_claude_format(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _convert_tools_to_claude_format(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Converts DIMOS tools to Claude format.
 
@@ -255,15 +258,15 @@ class ClaudeAgent(LLMAgent):
 
         return claude_tools
 
-    def _build_prompt(
+    def _build_prompt(  # type: ignore[override]
         self,
-        messages: list,
-        base64_image: Optional[Union[str, List[str]]] = None,
-        dimensions: Optional[Tuple[int, int]] = None,
+        messages: list,  # type: ignore[type-arg]
+        base64_image: str | list[str] | None = None,
+        dimensions: tuple[int, int] | None = None,
         override_token_limit: bool = False,
         rag_results: str = "",
-        thinking_budget_tokens: int = None,
-    ) -> list:
+        thinking_budget_tokens: int | None = None,
+    ) -> list:  # type: ignore[type-arg]
         """Builds a prompt message specifically for Claude API, using local messages copy."""
         """Builds a prompt message specifically for Claude API.
 
@@ -344,9 +347,9 @@ class ClaudeAgent(LLMAgent):
 
         # Store the parameters for use in _send_query and return them
         self.claude_api_params = claude_params.copy()
-        return messages, claude_params
+        return messages, claude_params  # type: ignore[return-value]
 
-    def _send_query(self, messages: list, claude_params: dict) -> Any:
+    def _send_query(self, messages: list, claude_params: dict) -> Any:  # type: ignore[override, type-arg]
         """Sends the query to Anthropic's API using streaming for better thinking visualization.
 
         Args:
@@ -394,7 +397,7 @@ class ClaudeAgent(LLMAgent):
                             block_type = event.content_block.type
                             current_block = {
                                 "type": block_type,
-                                "id": event.index,
+                                "id": event.index,  # type: ignore[dict-item]
                                 "content": "",
                                 "signature": None,
                             }
@@ -410,7 +413,7 @@ class ClaudeAgent(LLMAgent):
                             elif event.delta.type == "text_delta":
                                 # Accumulate text content
                                 text_content += event.delta.text
-                                current_block["content"] += event.delta.text
+                                current_block["content"] += event.delta.text  # type: ignore[operator]
                                 memory_file.write(f"{event.delta.text}")
                                 memory_file.flush()
 
@@ -460,9 +463,9 @@ class ClaudeAgent(LLMAgent):
                                 # Process tool use blocks when they're complete
                                 if hasattr(event, "content_block"):
                                     tool_block = event.content_block
-                                    tool_id = tool_block.id
-                                    tool_name = tool_block.name
-                                    tool_input = tool_block.input
+                                    tool_id = tool_block.id  # type: ignore[union-attr]
+                                    tool_name = tool_block.name  # type: ignore[union-attr]
+                                    tool_input = tool_block.input  # type: ignore[union-attr]
 
                                     # Create a tool call object for LLMAgent compatibility
                                     tool_call_obj = type(
@@ -534,14 +537,14 @@ class ClaudeAgent(LLMAgent):
 
     def _observable_query(
         self,
-        observer: Observer,
-        base64_image: Optional[str] = None,
-        dimensions: Optional[Tuple[int, int]] = None,
+        observer: Observer,  # type: ignore[name-defined]
+        base64_image: str | None = None,
+        dimensions: tuple[int, int] | None = None,
         override_token_limit: bool = False,
-        incoming_query: Optional[str] = None,
+        incoming_query: str | None = None,
         reset_conversation: bool = False,
-        thinking_budget_tokens: int = None,
-    ):
+        thinking_budget_tokens: int | None = None,
+    ) -> None:
         """Main query handler that manages conversation history and Claude interactions.
 
         This is the primary method for handling all queries, whether they come through
@@ -602,7 +605,7 @@ class ClaudeAgent(LLMAgent):
 
             # Handle tool calls if present
             if response_message.tool_calls:
-                self._handle_tooling(response_message, messages)
+                self._handle_tooling(response_message, messages)  # type: ignore[no-untyped-call]
 
             # At the end, append only new messages (including tool-use/results) to the global conversation history under a lock
             import threading
@@ -630,7 +633,7 @@ class ClaudeAgent(LLMAgent):
             self.response_subject.on_next(error_message)
             observer.on_completed()
 
-    def _handle_tooling(self, response_message, messages):
+    def _handle_tooling(self, response_message, messages):  # type: ignore[no-untyped-def]
         """Executes tools and appends tool-use/result blocks to messages."""
         if not hasattr(response_message, "tool_calls") or not response_message.tool_calls:
             logger.info("No tool calls found in response message")
@@ -655,7 +658,7 @@ class ClaudeAgent(LLMAgent):
             try:
                 # Execute the tool
                 args = json.loads(tool_call.function.arguments)
-                tool_result = self.skills.call(tool_call.function.name, **args)
+                tool_result = self.skills.call(tool_call.function.name, **args)  # type: ignore[union-attr]
 
                 # Check if the result is an error message
                 if isinstance(tool_result, str) and (
@@ -695,7 +698,7 @@ class ClaudeAgent(LLMAgent):
                     }
                 )
 
-    def _tooling_callback(self, response_message):
+    def _tooling_callback(self, response_message) -> None:  # type: ignore[no-untyped-def]
         """Runs the observable query for each tool call in the current response_message"""
         if not hasattr(response_message, "tool_calls") or not response_message.tool_calls:
             return
@@ -713,7 +716,7 @@ class ClaudeAgent(LLMAgent):
             # Continue processing even if the callback fails
             pass
 
-    def _debug_api_call(self, claude_params: dict):
+    def _debug_api_call(self, claude_params: dict):  # type: ignore[no-untyped-def, type-arg]
         """Debugging function to log API calls with truncated base64 data."""
         # Remove tools to reduce verbosity
         import copy

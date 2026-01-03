@@ -19,7 +19,6 @@ This module provides a skill that can terminate other running skills,
 particularly those running in separate threads like the monitor skill.
 """
 
-from typing import Optional
 from pydantic import Field
 
 from dimos.skills.skills import AbstractSkill, SkillLibrary
@@ -39,7 +38,7 @@ class KillSkill(AbstractSkill):
 
     skill_name: str = Field(..., description="Name of the skill to terminate")
 
-    def __init__(self, skill_library: Optional[SkillLibrary] = None, **data):
+    def __init__(self, skill_library: SkillLibrary | None = None, **data) -> None:  # type: ignore[no-untyped-def]
         """
         Initialize the kill skill.
 
@@ -50,13 +49,13 @@ class KillSkill(AbstractSkill):
         super().__init__(**data)
         self._skill_library = skill_library
 
-    def __call__(self):
+    def __call__(self):  # type: ignore[no-untyped-def]
         """
         Terminate the specified skill.
 
         Returns:
             A message indicating whether the skill was successfully terminated
         """
-        print("running skills", self._skill_library.get_running_skills())
+        print("running skills", self._skill_library.get_running_skills())  # type: ignore[union-attr]
         # Terminate the skill using the skill library
-        return self._skill_library.terminate_skill(self.skill_name)
+        return self._skill_library.terminate_skill(self.skill_name)  # type: ignore[union-attr]

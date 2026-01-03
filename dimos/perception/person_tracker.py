@@ -12,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dimos.perception.detection2d.yolo_2d_det import Yolo2DDetector
-from dimos.perception.detection2d.utils import filter_detections
-from dimos.perception.common.ibvs import PersonDistanceEstimator
-from reactivex import Observable, interval
-from reactivex.disposable import Disposable
-from reactivex import operators as ops
-import numpy as np
-import cv2
-from typing import Dict, Optional
 
-from dimos.core import In, Out, Module, rpc
+import cv2
+import numpy as np
+from reactivex import Observable, interval, operators as ops
+from reactivex.disposable import Disposable
+
+from dimos.core import In, Module, Out, rpc
 from dimos.msgs.sensor_msgs import Image
+from dimos.perception.common.ibvs import PersonDistanceEstimator
+from dimos.perception.detection2d.utils import filter_detections
+from dimos.perception.detection2d.yolo_2d_det import Yolo2DDetector  # type: ignore[import-untyped]
 from dimos.utils.logging_config import setup_logger
 
 logger = setup_logger("dimos.perception.person_tracker")
@@ -33,17 +32,17 @@ class PersonTrackingStream(Module):
     """Module for person tracking with LCM input/output."""
 
     # LCM inputs
-    video: In[Image] = None
+    video: In[Image] = None  # type: ignore[assignment]
 
     # LCM outputs
-    tracking_data: Out[Dict] = None
+    tracking_data: Out[dict] = None  # type: ignore[assignment, type-arg]
 
-    def __init__(
+    def __init__(  # type: ignore[no-untyped-def]
         self,
         camera_intrinsics=None,
-        camera_pitch=0.0,
-        camera_height=1.0,
-    ):
+        camera_pitch: float = 0.0,
+        camera_height: float = 1.0,
+    ) -> None:
         """
         Initialize a person tracking stream using Yolo2DDetector and PersonDistanceEstimator.
 
@@ -71,7 +70,7 @@ class PersonTrackingStream(Module):
 
         # Validate camera intrinsics format [fx, fy, cx, cy]
         if (
-            not isinstance(camera_intrinsics, (list, tuple, np.ndarray))
+            not isinstance(camera_intrinsics, list | tuple | np.ndarray)
             or len(camera_intrinsics) != 4
         ):
             raise ValueError("Camera intrinsics must be provided as [fx, fy, cx, cy]")
@@ -85,20 +84,20 @@ class PersonTrackingStream(Module):
         )
 
         # For tracking latest frame data
-        self._latest_frame: Optional[np.ndarray] = None
+        self._latest_frame: np.ndarray | None = None  # type: ignore[type-arg]
         self._process_interval = 0.1  # Process at 10Hz
 
         # Tracking state - starts disabled
         self._tracking_enabled = False
 
     @rpc
-    def start(self):
+    def start(self) -> None:
         """Start the person tracking module and subscribe to LCM streams."""
 
         super().start()
 
         # Subscribe to video stream
-        def set_video(image_msg: Image):
+        def set_video(image_msg: Image) -> None:
             if hasattr(image_msg, "data"):
                 self._latest_frame = image_msg.data
             else:
@@ -108,8 +107,8 @@ class PersonTrackingStream(Module):
         self._disposables.add(Disposable(unsub))
 
         # Start periodic processing
-        unsub = interval(self._process_interval).subscribe(lambda _: self._process_frame())
-        self._disposables.add(unsub)
+        unsub = interval(self._process_interval).subscribe(lambda _: self._process_frame())  # type: ignore[assignment]
+        self._disposables.add(unsub)  # type: ignore[arg-type]
 
         logger.info("PersonTracking module started and subscribed to LCM streams")
 
@@ -117,7 +116,7 @@ class PersonTrackingStream(Module):
     def stop(self) -> None:
         super().stop()
 
-    def _process_frame(self):
+    def _process_frame(self) -> None:
         """Process the latest frame if available."""
         if self._latest_frame is None:
             return
@@ -127,13 +126,13 @@ class PersonTrackingStream(Module):
             return
 
         # Process frame through tracking pipeline
-        result = self._process_tracking(self._latest_frame)
+        result = self._process_tracking(self._latest_frame)  # type: ignore[no-untyped-call]
 
         # Publish result to LCM
         if result:
-            self.tracking_data.publish(result)
+            self.tracking_data.publish(result)  # type: ignore[no-untyped-call]
 
-    def _process_tracking(self, frame):
+    def _process_tracking(self, frame):  # type: ignore[no-untyped-def]
         """Process a single frame for person tracking."""
         # Detect people in the frame
         bboxes, track_ids, class_ids, confidences, names = self.detector.process_image(frame)
@@ -179,7 +178,7 @@ class PersonTrackingStream(Module):
             target_data["angle"] = angle
 
             # Add text to visualization
-            x1, y1, x2, y2 = map(int, bbox)
+            _x1, y1, x2, _y2 = map(int, bbox)
             dist_text = f"{distance:.2f}m, {np.rad2deg(angle):.1f} deg"
 
             # Add black background for better visibility
@@ -237,17 +236,17 @@ class PersonTrackingStream(Module):
         return self._tracking_enabled
 
     @rpc
-    def get_tracking_data(self) -> Dict:
+    def get_tracking_data(self) -> dict:  # type: ignore[type-arg]
         """Get the latest tracking data.
 
         Returns:
             Dictionary containing tracking results
         """
         if self._latest_frame is not None:
-            return self._process_tracking(self._latest_frame)
+            return self._process_tracking(self._latest_frame)  # type: ignore[no-any-return, no-untyped-call]
         return {"frame": None, "viz_frame": None, "targets": []}
 
-    def create_stream(self, video_stream: Observable) -> Observable:
+    def create_stream(self, video_stream: Observable) -> Observable:  # type: ignore[type-arg]
         """
         Create an Observable stream of person tracking results from a video stream.
 

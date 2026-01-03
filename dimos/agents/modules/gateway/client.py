@@ -15,9 +15,12 @@
 """Unified gateway client for LLM access."""
 
 import asyncio
+from collections.abc import AsyncIterator, Iterator
 import logging
 import os
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
+from types import TracebackType
+from typing import Any
+
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -34,8 +37,8 @@ class UnifiedGatewayClient:
     """
 
     def __init__(
-        self, gateway_url: Optional[str] = None, timeout: float = 60.0, use_simple: bool = False
-    ):
+        self, gateway_url: str | None = None, timeout: float = 60.0, use_simple: bool = False
+    ) -> None:
         """Initialize the gateway client.
 
         Args:
@@ -61,34 +64,34 @@ class UnifiedGatewayClient:
     def _get_client(self) -> httpx.Client:
         """Get or create sync HTTP client."""
         if self._client is None:
-            self._client = httpx.Client(
-                base_url=self.gateway_url,
+            self._client = httpx.Client(  # type: ignore[assignment]
+                base_url=self.gateway_url,  # type: ignore[arg-type]
                 timeout=self.timeout,
                 headers={"Content-Type": "application/json"},
             )
-        return self._client
+        return self._client  # type: ignore[return-value]
 
     def _get_async_client(self) -> httpx.AsyncClient:
         """Get or create async HTTP client."""
         if self._async_client is None:
-            self._async_client = httpx.AsyncClient(
-                base_url=self.gateway_url,
+            self._async_client = httpx.AsyncClient(  # type: ignore[assignment]
+                base_url=self.gateway_url,  # type: ignore[arg-type]
                 timeout=self.timeout,
                 headers={"Content-Type": "application/json"},
             )
-        return self._async_client
+        return self._async_client  # type: ignore[return-value]
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    def inference(
+    def inference(  # type: ignore[no-untyped-def]
         self,
         model: str,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         stream: bool = False,
         **kwargs,
-    ) -> Union[Dict[str, Any], Iterator[Dict[str, Any]]]:
+    ) -> dict[str, Any] | Iterator[dict[str, Any]]:
         """Synchronous inference call.
 
         Args:
@@ -114,16 +117,16 @@ class UnifiedGatewayClient:
         )
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    async def ainference(
+    async def ainference(  # type: ignore[no-untyped-def]
         self,
         model: str,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         stream: bool = False,
         **kwargs,
-    ) -> Union[Dict[str, Any], AsyncIterator[Dict[str, Any]]]:
+    ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
         """Asynchronous inference call.
 
         Args:
@@ -148,7 +151,7 @@ class UnifiedGatewayClient:
             **kwargs,
         )
 
-    def close(self):
+    def close(self) -> None:
         """Close the HTTP clients."""
         if self._client:
             self._client.close()
@@ -159,14 +162,14 @@ class UnifiedGatewayClient:
             pass
         self._tensorzero_client.close()
 
-    async def aclose(self):
+    async def aclose(self) -> None:
         """Async close method."""
         if self._async_client:
             await self._async_client.aclose()
             self._async_client = None
         await self._tensorzero_client.aclose()
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on deletion."""
         self.close()
         if self._async_client:
@@ -181,18 +184,28 @@ class UnifiedGatewayClient:
                 # No event loop, just let it be garbage collected
                 pass
 
-    def __enter__(self):
+    def __enter__(self):  # type: ignore[no-untyped-def]
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Context manager exit."""
         self.close()
 
-    async def __aenter__(self):
+    async def __aenter__(self):  # type: ignore[no-untyped-def]
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Async context manager exit."""
         await self.aclose()

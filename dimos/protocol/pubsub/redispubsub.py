@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import defaultdict
+from collections.abc import Callable
+from dataclasses import dataclass, field
 import json
 import threading
 import time
-from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List
+from types import TracebackType
+from typing import Any
 
-import redis
+import redis  # type: ignore[import-not-found]
 
 from dimos.protocol.pubsub.spec import PubSub
 from dimos.protocol.service.spec import Service
@@ -30,7 +32,7 @@ class RedisConfig:
     host: str = "localhost"
     port: int = 6379
     db: int = 0
-    kwargs: Dict[str, Any] = field(default_factory=dict)
+    kwargs: dict[str, Any] = field(default_factory=dict)
 
 
 class Redis(PubSub[str, Any], Service[RedisConfig]):
@@ -38,7 +40,7 @@ class Redis(PubSub[str, Any], Service[RedisConfig]):
 
     default_config = RedisConfig
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:  # type: ignore[no-untyped-def]
         super().__init__(**kwargs)
 
         # Redis connections
@@ -46,7 +48,7 @@ class Redis(PubSub[str, Any], Service[RedisConfig]):
         self._pubsub = None
 
         # Subscription management
-        self._callbacks: Dict[str, List[Callable[[Any, str], None]]] = defaultdict(list)
+        self._callbacks: dict[str, list[Callable[[Any, str], None]]] = defaultdict(list)
         self._listener_thread = None
         self._running = False
 
@@ -54,13 +56,13 @@ class Redis(PubSub[str, Any], Service[RedisConfig]):
         """Start the Redis pub/sub service."""
         if self._running:
             return
-        self._connect()
+        self._connect()  # type: ignore[no-untyped-call]
 
     def stop(self) -> None:
         """Stop the Redis pub/sub service."""
         self.close()
 
-    def _connect(self):
+    def _connect(self):  # type: ignore[no-untyped-def]
         """Connect to Redis and set up pub/sub."""
         try:
             self._client = redis.Redis(
@@ -71,21 +73,21 @@ class Redis(PubSub[str, Any], Service[RedisConfig]):
                 **self.config.kwargs,
             )
             # Test connection
-            self._client.ping()
+            self._client.ping()  # type: ignore[attr-defined]
 
-            self._pubsub = self._client.pubsub()
+            self._pubsub = self._client.pubsub()  # type: ignore[attr-defined]
             self._running = True
 
             # Start listener thread
-            self._listener_thread = threading.Thread(target=self._listen_loop, daemon=True)
-            self._listener_thread.start()
+            self._listener_thread = threading.Thread(target=self._listen_loop, daemon=True)  # type: ignore[assignment]
+            self._listener_thread.start()  # type: ignore[attr-defined]
 
         except Exception as e:
             raise ConnectionError(
                 f"Failed to connect to Redis at {self.config.host}:{self.config.port}: {e}"
             )
 
-    def _listen_loop(self):
+    def _listen_loop(self) -> None:
         """Listen for messages from Redis and dispatch to callbacks."""
         while self._running:
             try:
@@ -141,7 +143,7 @@ class Redis(PubSub[str, Any], Service[RedisConfig]):
         self._callbacks[topic].append(callback)
 
         # Return unsubscribe function
-        def unsubscribe():
+        def unsubscribe() -> None:
             self.unsubscribe(topic, callback)
 
         return unsubscribe
@@ -161,7 +163,7 @@ class Redis(PubSub[str, Any], Service[RedisConfig]):
             except ValueError:
                 pass  # Callback wasn't in the list
 
-    def close(self):
+    def close(self) -> None:
         """Close Redis connections and stop listener thread."""
         self._running = False
 
@@ -184,8 +186,13 @@ class Redis(PubSub[str, Any], Service[RedisConfig]):
 
         self._callbacks.clear()
 
-    def __enter__(self):
+    def __enter__(self):  # type: ignore[no-untyped-def]
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.close()

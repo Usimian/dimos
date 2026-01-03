@@ -13,21 +13,21 @@
 # limitations under the License.
 
 import asyncio
+from collections.abc import Callable
 import threading
-import time
-from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, overload
+from typing import Any, Protocol, overload
 
 
 class Empty: ...
 
 
-Args = Tuple[List, Dict[str, Any]]
+Args = tuple[list, dict[str, Any]]  # type: ignore[type-arg]
 
 
 # module that we can inspect for RPCs
 class RPCInspectable(Protocol):
     @property
-    def rpcs(self) -> dict[str, Callable]: ...
+    def rpcs(self) -> dict[str, Callable]: ...  # type: ignore[type-arg]
 
 
 class RPCClient(Protocol):
@@ -39,31 +39,29 @@ class RPCClient(Protocol):
     @overload
     def call(self, name: str, arguments: Args, cb: Callable[[Any], None]) -> Callable[[], Any]: ...
 
-    def call(
-        self, name: str, arguments: Args, cb: Optional[Callable]
-    ) -> Optional[Callable[[], Any]]: ...
+    def call(self, name: str, arguments: Args, cb: Callable | None) -> Callable[[], Any] | None: ...  # type: ignore[type-arg]
 
     # we expect to crash if we don't get a return value after 10 seconds
     # but callers can override this timeout for extra long functions
     def call_sync(
-        self, name: str, arguments: Args, rpc_timeout: Optional[float] = 120.0
-    ) -> Tuple[Any, Callable[[], None]]:
+        self, name: str, arguments: Args, rpc_timeout: float | None = 120.0
+    ) -> tuple[Any, Callable[[], None]]:
         event = threading.Event()
 
-        def receive_value(val):
-            event.result = val  # attach to event
+        def receive_value(val) -> None:  # type: ignore[no-untyped-def]
+            event.result = val  # type: ignore[attr-defined]  # attach to event
             event.set()
 
         unsub_fn = self.call(name, arguments, receive_value)
         if not event.wait(rpc_timeout):
             raise TimeoutError(f"RPC call to '{name}' timed out after {rpc_timeout} seconds")
-        return event.result, unsub_fn
+        return event.result, unsub_fn  # type: ignore[attr-defined]
 
     async def call_async(self, name: str, arguments: Args) -> Any:
         loop = asyncio.get_event_loop()
         future = loop.create_future()
 
-        def receive_value(val):
+        def receive_value(val) -> None:  # type: ignore[no-untyped-def]
             try:
                 loop.call_soon_threadsafe(future.set_result, val)
             except Exception as e:
@@ -75,18 +73,18 @@ class RPCClient(Protocol):
 
 
 class RPCServer(Protocol):
-    def serve_rpc(self, f: Callable, name: str) -> Callable[[], None]: ...
+    def serve_rpc(self, f: Callable, name: str) -> Callable[[], None]: ...  # type: ignore[type-arg]
 
-    def serve_module_rpc(self, module: RPCInspectable, name: Optional[str] = None):
+    def serve_module_rpc(self, module: RPCInspectable, name: str | None = None) -> None:
         for fname in module.rpcs.keys():
             if not name:
                 name = module.__class__.__name__
 
-            def override_f(*args, fname=fname, **kwargs):
+            def override_f(*args, fname=fname, **kwargs):  # type: ignore[no-untyped-def]
                 return getattr(module, fname)(*args, **kwargs)
 
             topic = name + "/" + fname
-            unsub_fn = self.serve_rpc(override_f, topic)
+            self.serve_rpc(override_f, topic)
 
 
 class RPCSpec(RPCServer, RPCClient): ...

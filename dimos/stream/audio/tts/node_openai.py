@@ -13,21 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from enum import Enum
+import io
 import threading
 import time
-from enum import Enum
-from typing import Optional
-from reactivex import Observable, Subject
-import io
-import soundfile as sf
-from openai import OpenAI
 
-from dimos.stream.audio.text.base import AbstractTextConsumer, AbstractTextEmitter
+from openai import OpenAI
+from reactivex import Observable, Subject
+import soundfile as sf  # type: ignore[import-untyped]
+
 from dimos.stream.audio.base import (
     AbstractAudioEmitter,
     AudioEvent,
 )
-
+from dimos.stream.audio.text.base import AbstractTextConsumer, AbstractTextEmitter
 from dimos.utils.logging_config import setup_logger
 
 logger = setup_logger("dimos.stream.audio.tts.openai")
@@ -55,12 +54,12 @@ class OpenAITTSNode(AbstractTextConsumer, AbstractAudioEmitter, AbstractTextEmit
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         voice: Voice = Voice.ECHO,
         model: str = "tts-1",
         buffer_size: int = 1024,
         speed: float = 1.0,
-    ):
+    ) -> None:
         """
         Initialize OpenAITTSNode.
 
@@ -79,15 +78,15 @@ class OpenAITTSNode(AbstractTextConsumer, AbstractAudioEmitter, AbstractTextEmit
         self.client = OpenAI(api_key=api_key)
 
         # Initialize state
-        self.audio_subject = Subject()
-        self.text_subject = Subject()
+        self.audio_subject = Subject()  # type: ignore[var-annotated]
+        self.text_subject = Subject()  # type: ignore[var-annotated]
         self.subscription = None
         self.processing_thread = None
         self.is_running = True
-        self.text_queue = []
+        self.text_queue = []  # type: ignore[var-annotated]
         self.queue_lock = threading.Lock()
 
-    def emit_audio(self) -> Observable:
+    def emit_audio(self) -> Observable:  # type: ignore[type-arg]
         """
         Returns an observable that emits audio frames.
 
@@ -96,7 +95,7 @@ class OpenAITTSNode(AbstractTextConsumer, AbstractAudioEmitter, AbstractTextEmit
         """
         return self.audio_subject
 
-    def emit_text(self) -> Observable:
+    def emit_text(self) -> Observable:  # type: ignore[type-arg]
         """
         Returns an observable that emits the text being spoken.
 
@@ -105,7 +104,7 @@ class OpenAITTSNode(AbstractTextConsumer, AbstractAudioEmitter, AbstractTextEmit
         """
         return self.text_subject
 
-    def consume_text(self, text_observable: Observable) -> "AbstractTextConsumer":
+    def consume_text(self, text_observable: Observable) -> "AbstractTextConsumer":  # type: ignore[type-arg]
         """
         Start consuming text from the observable source.
 
@@ -118,11 +117,11 @@ class OpenAITTSNode(AbstractTextConsumer, AbstractAudioEmitter, AbstractTextEmit
         logger.info("Starting OpenAITTSNode")
 
         # Start the processing thread
-        self.processing_thread = threading.Thread(target=self._process_queue, daemon=True)
-        self.processing_thread.start()
+        self.processing_thread = threading.Thread(target=self._process_queue, daemon=True)  # type: ignore[assignment]
+        self.processing_thread.start()  # type: ignore[attr-defined]
 
         # Subscribe to the text observable
-        self.subscription = text_observable.subscribe(
+        self.subscription = text_observable.subscribe(  # type: ignore[assignment]
             on_next=self._queue_text,
             on_error=lambda e: logger.error(f"Error in OpenAITTSNode: {e}"),
         )
@@ -219,13 +218,15 @@ class OpenAITTSNode(AbstractTextConsumer, AbstractAudioEmitter, AbstractTextEmit
 
 if __name__ == "__main__":
     import time
-    from dimos.stream.audio.utils import keepalive
+
     from reactivex import Subject
+
     from dimos.stream.audio.node_output import SounddeviceAudioOutput
     from dimos.stream.audio.text.node_stdout import TextPrinterNode
+    from dimos.stream.audio.utils import keepalive
 
     # Create a simple text subject that we can push values to
-    text_subject = Subject()
+    text_subject = Subject()  # type: ignore[var-annotated]
 
     tts_node = OpenAITTSNode(voice=Voice.ALLOY)
     tts_node.consume_text(text_subject)
@@ -247,7 +248,7 @@ if __name__ == "__main__":
     print("Starting OpenAI TTS test...")
     print("-" * 60)
 
-    for i, message in enumerate(test_messages):
+    for _i, message in enumerate(test_messages):
         text_subject.on_next(message)
 
     keepalive()

@@ -12,19 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-import reactivex as rx
 from functools import partial
+
+import pytest
 from reactivex.scheduler import ThreadPoolScheduler
 
+from dimos.agents2.skills.google_maps_skill_container import GoogleMapsSkillContainer
 from dimos.agents2.skills.gps_nav_skill import GpsNavSkillContainer
 from dimos.agents2.skills.navigation import NavigationSkillContainer
-from dimos.agents2.skills.google_maps_skill_container import GoogleMapsSkillContainer
-from dimos.mapping.types import LatLon
-from dimos.robot.robot import GpsRobot
-from dimos.robot.unitree_webrtc.run_agents2 import SYSTEM_PROMPT
-from dimos.utils.data import get_data
-from dimos.msgs.sensor_msgs import Image
+from dimos.agents2.system_prompt import get_system_prompt
+from dimos.robot.unitree_webrtc.unitree_skill_container import UnitreeSkillContainer
+
+system_prompt = get_system_prompt()
 
 
 @pytest.fixture(autouse=True)
@@ -43,48 +42,41 @@ def cleanup_threadpool_scheduler(monkeypatch):
 
 
 @pytest.fixture
-def fake_robot(mocker):
-    return mocker.MagicMock()
-
-
-@pytest.fixture
-def fake_gps_robot(mocker):
-    return mocker.Mock(spec=GpsRobot)
-
-
-@pytest.fixture
-def fake_video_stream():
-    image_path = get_data("chair-image.png")
-    image = Image.from_file(str(image_path))
-    return rx.of(image)
-
-
-@pytest.fixture
-def fake_gps_position_stream():
-    return rx.of(LatLon(lat=37.783, lon=-122.413))
-
-
-@pytest.fixture
-def navigation_skill_container(fake_robot, fake_video_stream):
-    container = NavigationSkillContainer(fake_robot, fake_video_stream)
+def navigation_skill_container(mocker):
+    container = NavigationSkillContainer()
+    container.color_image.connection = mocker.MagicMock()
+    container.odom.connection = mocker.MagicMock()
     container.start()
     yield container
     container.stop()
 
 
 @pytest.fixture
-def gps_nav_skill_container(fake_gps_robot, fake_gps_position_stream):
-    container = GpsNavSkillContainer(fake_gps_robot, fake_gps_position_stream)
+def gps_nav_skill_container(mocker):
+    container = GpsNavSkillContainer()
+    container.gps_location.connection = mocker.MagicMock()
+    container.gps_goal = mocker.MagicMock()
     container.start()
     yield container
     container.stop()
 
 
 @pytest.fixture
-def google_maps_skill_container(fake_gps_robot, fake_gps_position_stream, mocker):
-    container = GoogleMapsSkillContainer(fake_gps_robot, fake_gps_position_stream)
+def google_maps_skill_container(mocker):
+    container = GoogleMapsSkillContainer()
+    container.gps_location.connection = mocker.MagicMock()
     container.start()
     container._client = mocker.MagicMock()
+    yield container
+    container.stop()
+
+
+@pytest.fixture
+def unitree_skills(mocker):
+    container = UnitreeSkillContainer()
+    container._move = mocker.Mock()
+    container._publish_request = mocker.Mock()
+    container.start()
     yield container
     container.stop()
 
@@ -93,7 +85,7 @@ def google_maps_skill_container(fake_gps_robot, fake_gps_position_stream, mocker
 def create_navigation_agent(navigation_skill_container, create_fake_agent):
     return partial(
         create_fake_agent,
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         skill_containers=[navigation_skill_container],
     )
 
@@ -101,7 +93,7 @@ def create_navigation_agent(navigation_skill_container, create_fake_agent):
 @pytest.fixture
 def create_gps_nav_agent(gps_nav_skill_container, create_fake_agent):
     return partial(
-        create_fake_agent, system_prompt=SYSTEM_PROMPT, skill_containers=[gps_nav_skill_container]
+        create_fake_agent, system_prompt=system_prompt, skill_containers=[gps_nav_skill_container]
     )
 
 
@@ -111,6 +103,15 @@ def create_google_maps_agent(
 ):
     return partial(
         create_fake_agent,
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         skill_containers=[gps_nav_skill_container, google_maps_skill_container],
+    )
+
+
+@pytest.fixture
+def create_unitree_skills_agent(unitree_skills, create_fake_agent):
+    return partial(
+        create_fake_agent,
+        system_prompt=system_prompt,
+        skill_containers=[unitree_skills],
     )

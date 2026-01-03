@@ -19,13 +19,12 @@ This module creates a reactive stream of position updates from ROS odometry or p
 """
 
 import logging
-from typing import Tuple, Optional
 import time
-from reactivex import Subject, Observable
-from reactivex import operators as ops
+
+from geometry_msgs.msg import PoseStamped  # type: ignore[attr-defined]
+from nav_msgs.msg import Odometry  # type: ignore[attr-defined]
 from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped
-from nav_msgs.msg import Odometry
+from reactivex import Observable, Subject, operators as ops
 
 from dimos.utils.logging_config import setup_logger
 
@@ -44,9 +43,9 @@ class PositionStreamProvider:
         self,
         ros_node: Node,
         odometry_topic: str = "/odom",
-        pose_topic: Optional[str] = None,
+        pose_topic: str | None = None,
         use_odometry: bool = True,
-    ):
+    ) -> None:
         """
         Initialize the position stream provider.
 
@@ -61,12 +60,12 @@ class PositionStreamProvider:
         self.pose_topic = pose_topic
         self.use_odometry = use_odometry
 
-        self._subject = Subject()
+        self._subject = Subject()  # type: ignore[var-annotated]
 
         self.last_position = None
         self.last_update_time = None
 
-        self._create_subscription()
+        self._create_subscription()  # type: ignore[no-untyped-call]
 
         logger.info(
             f"PositionStreamProvider initialized with "
@@ -74,7 +73,7 @@ class PositionStreamProvider:
             f"{odometry_topic if use_odometry else pose_topic}"
         )
 
-    def _create_subscription(self):
+    def _create_subscription(self):  # type: ignore[no-untyped-def]
         """Create the appropriate ROS subscription based on configuration."""
         if self.use_odometry:
             self.subscription = self.ros_node.create_subscription(
@@ -90,7 +89,7 @@ class PositionStreamProvider:
             )
             logger.info(f"Subscribed to pose topic: {self.pose_topic}")
 
-    def _odometry_callback(self, msg: Odometry):
+    def _odometry_callback(self, msg: Odometry) -> None:
         """
         Process odometry messages and extract position.
 
@@ -102,7 +101,7 @@ class PositionStreamProvider:
 
         self._update_position(x, y)
 
-    def _pose_callback(self, msg: PoseStamped):
+    def _pose_callback(self, msg: PoseStamped) -> None:
         """
         Process pose messages and extract position.
 
@@ -114,7 +113,7 @@ class PositionStreamProvider:
 
         self._update_position(x, y)
 
-    def _update_position(self, x: float, y: float):
+    def _update_position(self, x: float, y: float) -> None:
         """
         Update the current position and emit to subscribers.
 
@@ -129,13 +128,13 @@ class PositionStreamProvider:
             update_rate = 1.0 / (current_time - self.last_update_time)
             logger.debug(f"Position update rate: {update_rate:.1f} Hz")
 
-        self.last_position = position
-        self.last_update_time = current_time
+        self.last_position = position  # type: ignore[assignment]
+        self.last_update_time = current_time  # type: ignore[assignment]
 
         self._subject.on_next(position)
         logger.debug(f"Position updated: ({x:.2f}, {y:.2f})")
 
-    def get_position_stream(self) -> Observable:
+    def get_position_stream(self) -> Observable:  # type: ignore[type-arg]
         """
         Get an Observable stream of position updates.
 
@@ -146,7 +145,7 @@ class PositionStreamProvider:
             ops.share()  # Share the stream among multiple subscribers
         )
 
-    def get_current_position(self) -> Optional[Tuple[float, float]]:
+    def get_current_position(self) -> tuple[float, float] | None:
         """
         Get the most recent position.
 
@@ -155,7 +154,7 @@ class PositionStreamProvider:
         """
         return self.last_position
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up resources."""
         if hasattr(self, "subscription") and self.subscription:
             self.ros_node.destroy_subscription(self.subscription)

@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 from threading import Event, Thread
+import time
 
 import pytest
 
-from dimos.core import In, Module, Out, start, rpc
+from dimos.core import In, Module, Out, rpc, start
 from dimos.msgs.geometry_msgs import Vector3
 from dimos.robot.unitree_webrtc.type.lidar import LidarMessage
 from dimos.robot.unitree_webrtc.type.odometry import Odometry
@@ -25,34 +25,34 @@ from dimos.utils.testing import SensorReplay
 
 
 @pytest.fixture
-def dimos():
+def dimos():  # type: ignore[no-untyped-def]
     """Fixture to create a Dimos client for testing."""
     client = start(2)
     yield client
-    client.stop()
+    client.stop()  # type: ignore[attr-defined]
 
 
 class MockRobotClient(Module):
-    odometry: Out[Odometry] = None
-    lidar: Out[LidarMessage] = None
-    mov: In[Vector3] = None
+    odometry: Out[Odometry] = None  # type: ignore[assignment]
+    lidar: Out[LidarMessage] = None  # type: ignore[assignment]
+    mov: In[Vector3] = None  # type: ignore[assignment]
 
     mov_msg_count = 0
 
-    def mov_callback(self, msg):
+    def mov_callback(self, msg) -> None:  # type: ignore[no-untyped-def]
         self.mov_msg_count += 1
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._stop_event = Event()
         self._thread = None
 
     @rpc
-    def start(self):
+    def start(self) -> None:
         super().start()
 
-        self._thread = Thread(target=self.odomloop)
-        self._thread.start()
+        self._thread = Thread(target=self.odomloop)  # type: ignore[assignment]
+        self._thread.start()  # type: ignore[attr-defined]
         self.mov.subscribe(self.mov_callback)
 
     @rpc
@@ -63,7 +63,7 @@ class MockRobotClient(Module):
 
         super().stop()
 
-    def odomloop(self):
+    def odomloop(self) -> None:
         odomdata = SensorReplay("raw_odometry_rotate_walk", autocast=Odometry.from_msg)
         lidardata = SensorReplay("office_lidar", autocast=LidarMessage.from_msg)
 
@@ -75,9 +75,9 @@ class MockRobotClient(Module):
                     return
                 print(odom)
                 odom.pubtime = time.perf_counter()
-                self.odometry.publish(odom)
+                self.odometry.publish(odom)  # type: ignore[no-untyped-call]
 
                 lidarmsg = next(lidariter)
-                lidarmsg.pubtime = time.perf_counter()
-                self.lidar.publish(lidarmsg)
+                lidarmsg.pubtime = time.perf_counter()  # type: ignore[union-attr]
+                self.lidar.publish(lidarmsg)  # type: ignore[no-untyped-call]
                 time.sleep(0.1)

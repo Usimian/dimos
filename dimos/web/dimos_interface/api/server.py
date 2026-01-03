@@ -25,45 +25,46 @@
 # browser like Safari.
 
 # Fast Api & Uvicorn
-import cv2
-from dimos.web.edge_io import EdgeIO
-from fastapi import FastAPI, Request, Form, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
-from sse_starlette.sse import EventSourceResponse
-from fastapi.templating import Jinja2Templates
-import uvicorn
-from threading import Lock
-from pathlib import Path
-from queue import Queue, Empty
 import asyncio
-
-from reactivex.disposable import SingleAssignmentDisposable
-from reactivex import operators as ops
-import reactivex as rx
-from fastapi.middleware.cors import CORSMiddleware
 
 # For audio processing
 import io
+from pathlib import Path
+from queue import Empty, Queue
+from threading import Lock
 import time
+
+import cv2
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.templating import Jinja2Templates
+import ffmpeg  # type: ignore[import-untyped]
 import numpy as np
-import ffmpeg
-import soundfile as sf
+import reactivex as rx
+from reactivex import operators as ops
+from reactivex.disposable import SingleAssignmentDisposable
+import soundfile as sf  # type: ignore[import-untyped]
+from sse_starlette.sse import EventSourceResponse
+import uvicorn
+
 from dimos.stream.audio.base import AudioEvent
+from dimos.web.edge_io import EdgeIO
 
 # TODO: Resolve threading, start/stop stream functionality.
 
 
 class FastAPIServer(EdgeIO):
-    def __init__(
+    def __init__(  # type: ignore[no-untyped-def]
         self,
-        dev_name="FastAPI Server",
-        edge_type="Bidirectional",
-        host="0.0.0.0",
-        port=5555,
+        dev_name: str = "FastAPI Server",
+        edge_type: str = "Bidirectional",
+        host: str = "0.0.0.0",
+        port: int = 5555,
         text_streams=None,
         audio_subject=None,
         **streams,
-    ):
+    ) -> None:
         print("Starting FastAPIServer initialization...")  # Debug print
         super().__init__(dev_name, edge_type)
         self.app = FastAPI()
@@ -85,17 +86,17 @@ class FastAPIServer(EdgeIO):
         self.streams = streams
         self.active_streams = {}
         self.stream_locks = {key: Lock() for key in self.streams}
-        self.stream_queues = {}
-        self.stream_disposables = {}
+        self.stream_queues = {}  # type: ignore[var-annotated]
+        self.stream_disposables = {}  # type: ignore[var-annotated]
 
         # Initialize text streams
         self.text_streams = text_streams or {}
-        self.text_queues = {}
+        self.text_queues = {}  # type: ignore[var-annotated]
         self.text_disposables = {}
-        self.text_clients = set()
+        self.text_clients = set()  # type: ignore[var-annotated]
 
         # Create a Subject for text queries
-        self.query_subject = rx.subject.Subject()
+        self.query_subject = rx.subject.Subject()  # type: ignore[var-annotated]
         self.query_stream = self.query_subject.pipe(ops.share())
         self.audio_subject = audio_subject
 
@@ -121,15 +122,15 @@ class FastAPIServer(EdgeIO):
         self.setup_routes()
         print("FastAPIServer initialization complete")  # Debug print
 
-    def process_frame_fastapi(self, frame):
+    def process_frame_fastapi(self, frame):  # type: ignore[no-untyped-def]
         """Convert frame to JPEG format for streaming."""
         _, buffer = cv2.imencode(".jpg", frame)
         return buffer.tobytes()
 
-    def stream_generator(self, key):
+    def stream_generator(self, key):  # type: ignore[no-untyped-def]
         """Generate frames for a given video stream."""
 
-        def generate():
+        def generate():  # type: ignore[no-untyped-def]
             if key not in self.stream_queues:
                 self.stream_queues[key] = Queue(maxsize=10)
 
@@ -174,17 +175,18 @@ class FastAPIServer(EdgeIO):
 
         return generate
 
-    def create_video_feed_route(self, key):
+    def create_video_feed_route(self, key):  # type: ignore[no-untyped-def]
         """Create a video feed route for a specific stream."""
 
-        async def video_feed():
+        async def video_feed():  # type: ignore[no-untyped-def]
             return StreamingResponse(
-                self.stream_generator(key)(), media_type="multipart/x-mixed-replace; boundary=frame"
+                self.stream_generator(key)(),  # type: ignore[no-untyped-call]
+                media_type="multipart/x-mixed-replace; boundary=frame",
             )
 
         return video_feed
 
-    async def text_stream_generator(self, key):
+    async def text_stream_generator(self, key):  # type: ignore[no-untyped-def]
         """Generate SSE events for text stream."""
         client_id = id(object())
         self.text_clients.add(client_id)
@@ -209,7 +211,7 @@ class FastAPIServer(EdgeIO):
             self.text_clients.remove(client_id)
 
     @staticmethod
-    def _decode_audio(raw: bytes) -> tuple[np.ndarray, int]:
+    def _decode_audio(raw: bytes) -> tuple[np.ndarray, int]:  # type: ignore[type-arg]
         """Convert the webm/opus blob sent by the browser into mono 16-kHz PCM."""
         try:
             # Use ffmpeg to convert to 16-kHz mono 16-bit PCM WAV in memory
@@ -233,23 +235,23 @@ class FastAPIServer(EdgeIO):
             return np.array(audio), sr
         except Exception as exc:
             print(f"ffmpeg decoding failed: {exc}")
-            return None, None
+            return None, None  # type: ignore[return-value]
 
-    def setup_routes(self):
+    def setup_routes(self) -> None:
         """Set up FastAPI routes."""
 
         @self.app.get("/streams")
-        async def get_streams():
+        async def get_streams():  # type: ignore[no-untyped-def]
             """Get list of available video streams"""
             return {"streams": list(self.streams.keys())}
 
         @self.app.get("/text_streams")
-        async def get_text_streams():
+        async def get_text_streams():  # type: ignore[no-untyped-def]
             """Get list of available text streams"""
             return {"streams": list(self.text_streams.keys())}
 
         @self.app.get("/", response_class=HTMLResponse)
-        async def index(request: Request):
+        async def index(request: Request):  # type: ignore[no-untyped-def]
             stream_keys = list(self.streams.keys())
             text_stream_keys = list(self.text_streams.keys())
             return self.templates.TemplateResponse(
@@ -263,7 +265,7 @@ class FastAPIServer(EdgeIO):
             )
 
         @self.app.post("/submit_query")
-        async def submit_query(query: str = Form(...)):
+        async def submit_query(query: str = Form(...)):  # type: ignore[no-untyped-def]
             # Using Form directly as a dependency ensures proper form handling
             try:
                 if query:
@@ -275,11 +277,11 @@ class FastAPIServer(EdgeIO):
                 # Ensure we always return valid JSON even on error
                 return JSONResponse(
                     status_code=500,
-                    content={"success": False, "message": f"Server error: {str(e)}"},
+                    content={"success": False, "message": f"Server error: {e!s}"},
                 )
 
         @self.app.post("/upload_audio")
-        async def upload_audio(file: UploadFile = File(...)):
+        async def upload_audio(file: UploadFile = File(...)):  # type: ignore[no-untyped-def]
             """Handle audio upload from the browser."""
             if self.audio_subject is None:
                 return JSONResponse(
@@ -305,7 +307,7 @@ class FastAPIServer(EdgeIO):
 
                 # Push to reactive stream
                 self.audio_subject.on_next(event)
-                print(f"Received audio – {event.data.shape[0] / sr:.2f} s, {sr} Hz")
+                print(f"Received audio - {event.data.shape[0] / sr:.2f} s, {sr} Hz")
                 return {"success": True}
             except Exception as e:
                 print(f"Failed to process uploaded audio: {e}")
@@ -313,12 +315,12 @@ class FastAPIServer(EdgeIO):
 
         # Unitree API endpoints
         @self.app.get("/unitree/status")
-        async def unitree_status():
+        async def unitree_status():  # type: ignore[no-untyped-def]
             """Check the status of the Unitree API server"""
             return JSONResponse({"status": "online", "service": "unitree"})
 
         @self.app.post("/unitree/command")
-        async def unitree_command(request: Request):
+        async def unitree_command(request: Request):  # type: ignore[no-untyped-def]
             """Process commands sent from the terminal frontend"""
             try:
                 data = await request.json()
@@ -335,22 +337,22 @@ class FastAPIServer(EdgeIO):
 
                 return JSONResponse(response)
             except Exception as e:
-                print(f"Error processing command: {str(e)}")
+                print(f"Error processing command: {e!s}")
                 return JSONResponse(
                     status_code=500,
-                    content={"success": False, "message": f"Error processing command: {str(e)}"},
+                    content={"success": False, "message": f"Error processing command: {e!s}"},
                 )
 
         @self.app.get("/text_stream/{key}")
-        async def text_stream(key: str):
+        async def text_stream(key: str):  # type: ignore[no-untyped-def]
             if key not in self.text_streams:
                 raise HTTPException(status_code=404, detail=f"Text stream '{key}' not found")
-            return EventSourceResponse(self.text_stream_generator(key))
+            return EventSourceResponse(self.text_stream_generator(key))  # type: ignore[no-untyped-call]
 
         for key in self.streams:
-            self.app.get(f"/video_feed/{key}")(self.create_video_feed_route(key))
+            self.app.get(f"/video_feed/{key}")(self.create_video_feed_route(key))  # type: ignore[no-untyped-call]
 
-    def run(self):
+    def run(self) -> None:
         """Run the FastAPI server."""
         uvicorn.run(
             self.app, host=self.host, port=self.port

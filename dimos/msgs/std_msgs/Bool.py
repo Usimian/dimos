@@ -15,22 +15,20 @@
 
 """Bool message type."""
 
-from typing import ClassVar
-
-from dimos_lcm.std_msgs import Bool as LCMBool
+from dimos_lcm.std_msgs import Bool as LCMBool  # type: ignore[import-untyped]
 
 try:
-    from std_msgs.msg import Bool as ROSBool
+    from std_msgs.msg import Bool as ROSBool  # type: ignore[attr-defined]
 except ImportError:
-    ROSBool = None
+    ROSBool = None  # type: ignore[assignment, misc]
 
 
-class Bool(LCMBool):
+class Bool(LCMBool):  # type: ignore[misc]
     """ROS-compatible Bool message."""
 
     msg_name = "std_msgs.Bool"
 
-    def __init__(self, data: bool = False):
+    def __init__(self, data: bool = False) -> None:
         """Initialize Bool with data value."""
         self.data = data
 
@@ -54,6 +52,6 @@ class Bool(LCMBool):
         """
         if ROSBool is None:
             raise ImportError("ROS std_msgs not available")
-        ros_msg = ROSBool()
+        ros_msg = ROSBool()  # type: ignore[no-untyped-call]
         ros_msg.data = bool(self.data)
         return ros_msg

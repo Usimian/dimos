@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
-import pickle
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+import asyncio
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, Callable, Generic, TypeVar
+import pickle
+from typing import Any, Generic, TypeVar
+
 from dimos.utils.logging_config import setup_logger
 
 MsgT = TypeVar("MsgT")
@@ -54,10 +55,10 @@ class PubSub(Generic[TopicT, MsgT], ABC):
             self._unsubscribe_fn()
 
         # context-manager helper
-        def __enter__(self):
+        def __enter__(self):  # type: ignore[no-untyped-def]
             return self
 
-        def __exit__(self, *exc):
+        def __exit__(self, *exc) -> None:  # type: ignore[no-untyped-def]
             self.unsubscribe()
 
     # public helper: returns disposable object
@@ -69,7 +70,7 @@ class PubSub(Generic[TopicT, MsgT], ABC):
     async def aiter(self, topic: TopicT, *, max_pending: int | None = None) -> AsyncIterator[MsgT]:
         q: asyncio.Queue[MsgT] = asyncio.Queue(maxsize=max_pending or 0)
 
-        def _cb(msg: MsgT, topic: TopicT):
+        def _cb(msg: MsgT, topic: TopicT) -> None:
             q.put_nowait(msg)
 
         unsubscribe_fn = self.subscribe(topic, _cb)
@@ -82,10 +83,10 @@ class PubSub(Generic[TopicT, MsgT], ABC):
         # async context manager returning a queue
 
     @asynccontextmanager
-    async def queue(self, topic: TopicT, *, max_pending: int | None = None):
+    async def queue(self, topic: TopicT, *, max_pending: int | None = None):  # type: ignore[no-untyped-def]
         q: asyncio.Queue[MsgT] = asyncio.Queue(maxsize=max_pending or 0)
 
-        def _queue_cb(msg: MsgT, topic: TopicT):
+        def _queue_cb(msg: MsgT, topic: TopicT) -> None:
             q.put_nowait(msg)
 
         unsubscribe_fn = self.subscribe(topic, _queue_cb)
@@ -113,13 +114,13 @@ class PubSubEncoderMixin(Generic[TopicT, MsgT], ABC):
     @abstractmethod
     def decode(self, msg: bytes, topic: TopicT) -> MsgT: ...
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         super().__init__(*args, **kwargs)
-        self._encode_callback_map: dict = {}
+        self._encode_callback_map: dict = {}  # type: ignore[type-arg]
 
     def publish(self, topic: TopicT, message: MsgT) -> None:
         """Encode the message and publish it."""
-        if getattr(self, "_stop_event", None) is not None and self._stop_event.is_set():
+        if getattr(self, "_stop_event", None) is not None and self._stop_event.is_set():  # type: ignore[attr-defined]
             return
         encoded_message = self.encode(message, topic)
         if encoded_message is None:
@@ -131,15 +132,15 @@ class PubSubEncoderMixin(Generic[TopicT, MsgT], ABC):
     ) -> Callable[[], None]:
         """Subscribe with automatic decoding."""
 
-        def wrapper_cb(encoded_data: bytes, topic: TopicT):
+        def wrapper_cb(encoded_data: bytes, topic: TopicT) -> None:
             decoded_message = self.decode(encoded_data, topic)
             callback(decoded_message, topic)
 
-        return super().subscribe(topic, wrapper_cb)  # type: ignore[misc]
+        return super().subscribe(topic, wrapper_cb)  # type: ignore[misc, no-any-return]
 
 
 class PickleEncoderMixin(PubSubEncoderMixin[TopicT, MsgT]):
-    def encode(self, msg: MsgT, *_: TopicT) -> bytes:
+    def encode(self, msg: MsgT, *_: TopicT) -> bytes:  # type: ignore[return]
         try:
             return pickle.dumps(msg)
         except Exception as e:
@@ -150,4 +151,4 @@ class PickleEncoderMixin(PubSubEncoderMixin[TopicT, MsgT]):
             print("Tried to pickle:", msg)
 
     def decode(self, msg: bytes, _: TopicT) -> MsgT:
-        return pickle.loads(msg)
+        return pickle.loads(msg)  # type: ignore[no-any-return]

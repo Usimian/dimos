@@ -16,7 +16,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from typing import Generic, Iterable, Tuple, TypedDict, TypeVar, Union
+from typing import TYPE_CHECKING, Generic, TypedDict, TypeVar, Union
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 PAYLOAD = TypeVar("PAYLOAD")
 
@@ -29,7 +32,7 @@ class RosStamp(TypedDict):
 EpochLike = Union[int, float, datetime, RosStamp]
 
 
-def from_ros_stamp(stamp: dict[str, int], tz: timezone = None) -> datetime:
+def from_ros_stamp(stamp: dict[str, int], tz: timezone | None = None) -> datetime:
     """Convert ROS-style timestamp {'sec': int, 'nanosec': int} to datetime."""
     return datetime.fromtimestamp(stamp["sec"] + stamp["nanosec"] / 1e9, tz=tz)
 
@@ -39,12 +42,12 @@ def to_human_readable(ts: EpochLike) -> str:
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def to_datetime(ts: EpochLike, tz: timezone = None) -> datetime:
+def to_datetime(ts: EpochLike, tz: timezone | None = None) -> datetime:
     if isinstance(ts, datetime):
         # if ts.tzinfo is None:
         #    ts = ts.astimezone(tz)
         return ts
-    if isinstance(ts, (int, float)):
+    if isinstance(ts, int | float):
         return datetime.fromtimestamp(ts, tz=tz)
     if isinstance(ts, dict) and "sec" in ts and "nanosec" in ts:
         return datetime.fromtimestamp(ts["sec"] + ts["nanosec"] / 1e9, tz=tz)
@@ -56,14 +59,14 @@ class Timestamped(ABC):
 
     ts: datetime
 
-    def __init__(self, ts: EpochLike):
+    def __init__(self, ts: EpochLike) -> None:
         self.ts = to_datetime(ts)
 
 
 class TEvent(Timestamped, Generic[PAYLOAD]):
     """Concrete class for an event with a timestamp and data."""
 
-    def __init__(self, timestamp: EpochLike, data: PAYLOAD):
+    def __init__(self, timestamp: EpochLike, data: PAYLOAD) -> None:
         super().__init__(timestamp)
         self.data = data
 
@@ -88,19 +91,19 @@ class Timeseries(ABC, Generic[EVENT]):
     @property
     def start_time(self) -> datetime:
         """Return the timestamp of the earliest event, assuming the data is sorted."""
-        return next(iter(self)).ts
+        return next(iter(self)).ts  # type: ignore[call-overload, no-any-return, type-var]
 
     @property
     def end_time(self) -> datetime:
         """Return the timestamp of the latest event, assuming the data is sorted."""
-        return next(reversed(list(self))).ts
+        return next(reversed(list(self))).ts  # type: ignore[call-overload, no-any-return]
 
     @property
     def frequency(self) -> float:
         """Calculate the frequency of events in Hz."""
-        return len(list(self)) / (self.duration().total_seconds() or 1)
+        return len(list(self)) / (self.duration().total_seconds() or 1)  # type: ignore[call-overload]
 
-    def time_range(self) -> Tuple[datetime, datetime]:
+    def time_range(self) -> tuple[datetime, datetime]:
         """Return (earliest_ts, latest_ts).  Empty input ⇒ ValueError."""
         return self.start_time, self.end_time
 
@@ -118,7 +121,7 @@ class Timeseries(ABC, Generic[EVENT]):
         closest = None
         min_dist = float("inf")
 
-        for event in self:
+        for event in self:  # type: ignore[attr-defined]
             dist = abs(event.ts - target_ts)
             if dist > min_dist:
                 break
@@ -127,11 +130,11 @@ class Timeseries(ABC, Generic[EVENT]):
             closest = event
 
         print(f"closest: {closest}")
-        return closest
+        return closest  # type: ignore[return-value]
 
     def __repr__(self) -> str:
         """Return a string representation of the Timeseries."""
-        return f"Timeseries(date={self.start_time.strftime('%Y-%m-%d')}, start={self.start_time.strftime('%H:%M:%S')}, end={self.end_time.strftime('%H:%M:%S')}, duration={self.duration()}, events={len(list(self))}, freq={self.frequency:.2f}Hz)"
+        return f"Timeseries(date={self.start_time.strftime('%Y-%m-%d')}, start={self.start_time.strftime('%H:%M:%S')}, end={self.end_time.strftime('%H:%M:%S')}, duration={self.duration()}, events={len(list(self))}, freq={self.frequency:.2f}Hz)"  # type: ignore[call-overload]
 
     def __str__(self) -> str:
         """Return a string representation of the Timeseries."""

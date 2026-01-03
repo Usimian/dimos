@@ -14,7 +14,7 @@
 
 import pickle
 
-from dimos_lcm.sensor_msgs import CameraInfo
+from dimos_lcm.sensor_msgs import CameraInfo  # type: ignore[import-untyped]
 
 from dimos.msgs.sensor_msgs import Image
 from dimos.msgs.std_msgs import Header
@@ -70,7 +70,7 @@ def camera_info() -> CameraInfo:
     )
 
 
-def transform_chain(odom_frame: Odometry) -> list:
+def transform_chain(odom_frame: Odometry) -> list:  # type: ignore[type-arg]
     from dimos.msgs.geometry_msgs import Quaternion, Transform, Vector3
     from dimos.protocol.tf import TF
 
@@ -97,26 +97,28 @@ def transform_chain(odom_frame: Odometry) -> list:
         camera_optical,
     )
 
-    return tf
+    return tf  # type: ignore[return-value]
 
 
-def broadcast(
+def broadcast(  # type: ignore[no-untyped-def]
     timestamp: float,
     lidar_frame: LidarMessage,
     video_frame: Image,
     odom_frame: Odometry,
     detections,
     annotations,
-):
-    from dimos_lcm.foxglove_msgs.ImageAnnotations import ImageAnnotations
+) -> None:
+    from dimos_lcm.foxglove_msgs.ImageAnnotations import (  # type: ignore[import-untyped]
+        ImageAnnotations,
+    )
 
     from dimos.core import LCMTransport
     from dimos.msgs.geometry_msgs import PoseStamped
 
-    lidar_transport = LCMTransport("/lidar", LidarMessage)
-    odom_transport = LCMTransport("/odom", PoseStamped)
-    video_transport = LCMTransport("/image", Image)
-    camera_info_transport = LCMTransport("/camera_info", CameraInfo)
+    lidar_transport = LCMTransport("/lidar", LidarMessage)  # type: ignore[var-annotated]
+    odom_transport = LCMTransport("/odom", PoseStamped)  # type: ignore[var-annotated]
+    video_transport = LCMTransport("/image", Image)  # type: ignore[var-annotated]
+    camera_info_transport = LCMTransport("/camera_info", CameraInfo)  # type: ignore[var-annotated]
 
     lidar_transport.broadcast(None, lidar_frame)
     video_transport.broadcast(None, video_frame)
@@ -129,13 +131,16 @@ def broadcast(
     print(video_frame)
     print(odom_frame)
     video_transport = LCMTransport("/image", Image)
-    annotations_transport = LCMTransport("/annotations", ImageAnnotations)
+    annotations_transport = LCMTransport("/annotations", ImageAnnotations)  # type: ignore[var-annotated]
     annotations_transport.broadcast(None, annotations)
 
 
-def process_data():
+def process_data():  # type: ignore[no-untyped-def]
     from dimos.msgs.sensor_msgs import Image
-    from dimos.perception.detection2d.module import Detect2DModule, build_imageannotations
+    from dimos.perception.detection.module2D import (  # type: ignore[attr-defined]
+        Detection2DModule,
+        build_imageannotations,
+    )
     from dimos.robot.unitree_webrtc.type.lidar import LidarMessage
     from dimos.robot.unitree_webrtc.type.odometry import Odometry
     from dimos.utils.data import get_data
@@ -152,11 +157,11 @@ def process_data():
         return image
 
     lidar_frame = lidar_store.find_closest(target, tolerance=1)
-    video_frame = attach_frame_id(video_store.find_closest(target, tolerance=1))
+    video_frame = attach_frame_id(video_store.find_closest(target, tolerance=1))  # type: ignore[arg-type]
     odom_frame = odom_store.find_closest(target, tolerance=1)
 
-    detector = Detect2DModule()
-    detections = detector.detect(video_frame)
+    detector = Detection2DModule()
+    detections = detector.detect(video_frame)  # type: ignore[attr-defined]
     annotations = build_imageannotations(detections)
 
     data = (target, lidar_frame, video_frame, odom_frame, detections, annotations)
@@ -167,13 +172,13 @@ def process_data():
     return data
 
 
-def main():
+def main() -> None:
     try:
         with open("filename.pkl", "rb") as file:
             data = pickle.load(file)
     except FileNotFoundError:
         print("Processing data and creating pickle file...")
-        data = process_data()
+        data = process_data()  # type: ignore[no-untyped-call]
     broadcast(*data)
 
 

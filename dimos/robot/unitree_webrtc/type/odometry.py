@@ -14,13 +14,10 @@
 import time
 from typing import Literal, TypedDict
 
-from scipy.spatial.transform import Rotation as R
-
 from dimos.msgs.geometry_msgs import PoseStamped, Quaternion, Vector3
 from dimos.robot.unitree_webrtc.type.timeseries import (
     Timestamped,
 )
-from dimos.types.timestamped import to_human_readable, to_timestamp
 
 raw_odometry_msg_sample = {
     "type": "msg",
@@ -74,11 +71,11 @@ class RawOdometryMessage(TypedDict):
     data: OdometryData
 
 
-class Odometry(PoseStamped, Timestamped):
+class Odometry(PoseStamped, Timestamped):  # type: ignore[misc]
     name = "geometry_msgs.PoseStamped"
 
-    def __init__(self, frame_id: str = "base_link", *args, **kwargs) -> None:
-        super().__init__(frame_id=frame_id, *args, **kwargs)
+    def __init__(self, frame_id: str = "base_link", *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        super().__init__(frame_id=frame_id, *args, **kwargs)  # type: ignore[misc]
 
     @classmethod
     def from_msg(cls, msg: RawOdometryMessage) -> "Odometry":

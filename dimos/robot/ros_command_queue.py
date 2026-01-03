@@ -20,12 +20,14 @@ including WebRTC requests and action client commands.
 Commands are processed sequentially and only when the robot is in IDLE state.
 """
 
+from collections.abc import Callable
+from enum import Enum, auto
+from queue import Empty, PriorityQueue
 import threading
 import time
+from typing import Any, NamedTuple
 import uuid
-from enum import Enum, auto
-from queue import PriorityQueue, Empty
-from typing import Callable, Optional, NamedTuple, Dict, Any
+
 from dimos.utils.logging_config import setup_logger
 
 # Initialize logger for the ros command queue module
@@ -55,8 +57,8 @@ class ROSCommand(NamedTuple):
 
     id: str  # Unique ID for tracking
     cmd_type: CommandType  # Type of command
-    execute_func: Callable  # Function to execute the command
-    params: Dict[str, Any]  # Parameters for the command (for debugging/logging)
+    execute_func: Callable  # type: ignore[type-arg]  # Function to execute the command
+    params: dict[str, Any]  # Parameters for the command (for debugging/logging)
     priority: int  # Priority level (lower is higher priority)
     timeout: float  # How long to wait for this command to complete
 
@@ -71,11 +73,11 @@ class ROSCommandQueue:
 
     def __init__(
         self,
-        webrtc_func: Callable,
-        is_ready_func: Callable[[], bool] = None,
-        is_busy_func: Optional[Callable[[], bool]] = None,
+        webrtc_func: Callable,  # type: ignore[type-arg]
+        is_ready_func: Callable[[], bool] | None = None,
+        is_busy_func: Callable[[], bool] | None = None,
         debug: bool = True,
-    ):
+    ) -> None:
         """
         Initialize the ROSCommandQueue.
 
@@ -91,7 +93,7 @@ class ROSCommandQueue:
         self._debug = debug
 
         # Queue of commands to process
-        self._queue = PriorityQueue()
+        self._queue = PriorityQueue()  # type: ignore[var-annotated]
         self._current_command = None
         self._last_command_time = 0
 
@@ -108,7 +110,7 @@ class ROSCommandQueue:
         self._command_count = 0
         self._success_count = 0
         self._failure_count = 0
-        self._command_history = []
+        self._command_history = []  # type: ignore[var-annotated]
 
         self._max_queue_wait_time = (
             30.0  # Maximum time to wait for robot to be ready before forcing
@@ -116,18 +118,18 @@ class ROSCommandQueue:
 
         logger.info("ROSCommandQueue initialized")
 
-    def start(self):
+    def start(self) -> None:
         """Start the queue processing thread"""
         if self._queue_thread is not None and self._queue_thread.is_alive():
             logger.warning("Queue processing thread already running")
             return
 
         self._should_stop = False
-        self._queue_thread = threading.Thread(target=self._process_queue, daemon=True)
-        self._queue_thread.start()
+        self._queue_thread = threading.Thread(target=self._process_queue, daemon=True)  # type: ignore[assignment]
+        self._queue_thread.start()  # type: ignore[attr-defined]
         logger.info("Queue processing thread started")
 
-    def stop(self, timeout=2.0):
+    def stop(self, timeout: float = 2.0) -> None:
         """
         Stop the queue processing thread
 
@@ -151,10 +153,10 @@ class ROSCommandQueue:
     def queue_webrtc_request(
         self,
         api_id: int,
-        topic: str = None,
+        topic: str | None = None,
         parameter: str = "",
-        request_id: str = None,
-        data: Dict[str, Any] = None,
+        request_id: str | None = None,
+        data: dict[str, Any] | None = None,
         priority: int = 0,
         timeout: float = 30.0,
     ) -> str:
@@ -176,7 +178,7 @@ class ROSCommandQueue:
         request_id = request_id or str(uuid.uuid4())
 
         # Create a function that will execute this WebRTC request
-        def execute_webrtc():
+        def execute_webrtc() -> bool:
             try:
                 logger.info(f"Executing WebRTC request: {api_id} (ID: {request_id})")
                 if self._debug:
@@ -204,7 +206,7 @@ class ROSCommandQueue:
                 time.sleep(stabilization_delay)
 
                 # Wait for the robot to complete the command (timeout check)
-                while self._is_busy_func() and (time.time() - start_time) < timeout:
+                while self._is_busy_func() and (time.time() - start_time) < timeout:  # type: ignore[misc]
                     if (
                         self._debug and (time.time() - start_time) % 5 < 0.1
                     ):  # Print every ~5 seconds
@@ -214,7 +216,7 @@ class ROSCommandQueue:
                     time.sleep(0.1)
 
                 # Check if we timed out
-                if self._is_busy_func() and (time.time() - start_time) >= timeout:
+                if self._is_busy_func() and (time.time() - start_time) >= timeout:  # type: ignore[misc]
                     logger.warning(f"WebRTC request timed out: {api_id} (ID: {request_id})")
                     return False
 
@@ -253,10 +255,10 @@ class ROSCommandQueue:
 
         return request_id
 
-    def queue_action_client_request(
+    def queue_action_client_request(  # type: ignore[no-untyped-def]
         self,
         action_name: str,
-        execute_func: Callable,
+        execute_func: Callable,  # type: ignore[type-arg]
         priority: int = 0,
         timeout: float = 30.0,
         **kwargs,
@@ -297,7 +299,7 @@ class ROSCommandQueue:
 
         return request_id
 
-    def _process_queue(self):
+    def _process_queue(self) -> None:
         """Process commands in the queue"""
         logger.info("Starting queue processing")
         logger.info("[WebRTC Queue] Processing thread started")
@@ -322,15 +324,15 @@ class ROSCommandQueue:
                     logger.debug(
                         f"Robot ready state changed: {self._last_ready_state} -> {is_ready}"
                     )
-                    self._last_ready_state = is_ready
+                    self._last_ready_state = is_ready  # type: ignore[assignment]
 
                 if is_busy != self._last_busy_state:
                     logger.debug(f"Robot busy state changed: {self._last_busy_state} -> {is_busy}")
-                    self._last_busy_state = is_busy
+                    self._last_busy_state = is_busy  # type: ignore[assignment]
 
                     # If the robot has transitioned to busy, record the time
                     if is_busy:
-                        self._stuck_in_busy_since = current_time
+                        self._stuck_in_busy_since = current_time  # type: ignore[assignment]
                     else:
                         self._stuck_in_busy_since = None
 
@@ -357,7 +359,7 @@ class ROSCommandQueue:
                         # Get the next command
                         _, _, command = self._queue.get(block=False)
                         self._current_command = command
-                        self._last_command_time = current_time
+                        self._last_command_time = current_time  # type: ignore[assignment]
 
                         # Log the command
                         cmd_info = f"ID: {command.id}, Type: {command.cmd_type.name}"
@@ -426,7 +428,7 @@ class ROSCommandQueue:
 
         logger.info("Queue processing stopped")
 
-    def _print_queue_status(self):
+    def _print_queue_status(self) -> None:
         """Print the current queue status"""
         current_time = time.time()
 
@@ -435,7 +437,7 @@ class ROSCommandQueue:
             return
 
         is_ready = self._is_ready_func()
-        is_busy = self._is_busy_func() if self._is_busy_func else False
+        self._is_busy_func() if self._is_busy_func else False
         queue_size = self.queue_size
 
         # Get information about the current command
@@ -458,7 +460,7 @@ class ROSCommandQueue:
         )
 
         logger.debug(status)
-        self._last_command_time = current_time
+        self._last_command_time = current_time  # type: ignore[assignment]
 
     @property
     def queue_size(self) -> int:
@@ -466,6 +468,6 @@ class ROSCommandQueue:
         return self._queue.qsize()
 
     @property
-    def current_command(self) -> Optional[ROSCommand]:
+    def current_command(self) -> ROSCommand | None:
         """Get the current command being processed"""
         return self._current_command

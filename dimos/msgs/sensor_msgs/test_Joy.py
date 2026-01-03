@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import pytest
-import time
 
 try:
     from sensor_msgs.msg import Joy as ROSJoy
@@ -29,7 +29,7 @@ except ImportError:
 from dimos.msgs.sensor_msgs.Joy import Joy
 
 
-def test_lcm_encode_decode():
+def test_lcm_encode_decode() -> None:
     """Test LCM encode/decode preserves Joy data."""
     print("Testing Joy LCM encode/decode...")
 
@@ -58,7 +58,7 @@ def test_lcm_encode_decode():
     print("✓ Joy LCM encode/decode test passed")
 
 
-def test_initialization_methods():
+def test_initialization_methods() -> None:
     """Test various initialization methods for Joy."""
     print("Testing Joy initialization methods...")
 
@@ -98,7 +98,7 @@ def test_initialization_methods():
     print("✓ Joy initialization methods test passed")
 
 
-def test_equality():
+def test_equality() -> None:
     """Test Joy equality comparison."""
     print("Testing Joy equality...")
 
@@ -136,7 +136,7 @@ def test_equality():
     print("✓ Joy equality test passed")
 
 
-def test_string_representation():
+def test_string_representation() -> None:
     """Test Joy string representations."""
     print("Testing Joy string representations...")
 
@@ -165,8 +165,8 @@ def test_string_representation():
     print("✓ Joy string representation test passed")
 
 
-@pytest.mark.skipif(not ROS_AVAILABLE, reason="ROS not available")
-def test_ros_conversion():
+@pytest.mark.ros
+def test_ros_conversion() -> None:
     """Test conversion to/from ROS Joy messages."""
     print("Testing Joy ROS conversion...")
 
@@ -197,7 +197,7 @@ def test_ros_conversion():
     print("✓ Joy ROS conversion test passed")
 
 
-def test_edge_cases():
+def test_edge_cases() -> None:
     """Test Joy with edge cases."""
     print("Testing Joy edge cases...")
 
@@ -220,7 +220,7 @@ def test_edge_cases():
     decoded = Joy.lcm_decode(encoded)
     # Check axes with floating point tolerance
     assert len(decoded.axes) == len(many_axes)
-    for i, (a, b) in enumerate(zip(decoded.axes, many_axes)):
+    for i, (a, b) in enumerate(zip(decoded.axes, many_axes, strict=False)):
         assert abs(a - b) < 1e-6, f"Axis {i}: {a} != {b}"
     assert decoded.buttons == many_buttons
 
@@ -230,14 +230,3 @@ def test_edge_cases():
     assert joy3.axes == extreme_axes
 
     print("✓ Joy edge cases test passed")
-
-
-if __name__ == "__main__":
-    test_lcm_encode_decode()
-    test_initialization_methods()
-    test_equality()
-    test_string_representation()
-    if ROS_AVAILABLE:
-        test_ros_conversion()
-    test_edge_cases()
-    print("\nAll Joy tests passed! ✓")

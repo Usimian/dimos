@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Dict, Any, Optional, Union
 import time
+from typing import Any
 import uuid
 
 from pydantic import Field
@@ -21,12 +21,9 @@ from pydantic import Field
 from dimos.skills.manipulation.abstract_manipulation_skill import AbstractManipulationSkill
 from dimos.types.manipulation import (
     AbstractConstraint,
-    TranslationConstraint,
-    RotationConstraint,
-    ForceConstraint,
-    ManipulationTaskConstraint,
-    ManipulationTask,
     ManipulationMetadata,
+    ManipulationTask,
+    ManipulationTaskConstraint,
 )
 from dimos.utils.logging_config import setup_logger
 
@@ -52,18 +49,18 @@ class Manipulate(AbstractManipulationSkill):
     )
 
     # Constraints - can be set directly
-    constraints: List[str] = Field(
+    constraints: list[str] = Field(
         [],
         description="List of AbstractConstraint constraint IDs from AgentMemory to apply to the manipulation task",
     )
 
     # Object movement tolerances
-    object_tolerances: Dict[str, float] = Field(
+    object_tolerances: dict[str, float] = Field(
         {},  # Empty dict as default
         description="Dictionary mapping object IDs to movement tolerances (0.0 = immovable, 1.0 = freely movable)",
     )
 
-    def __call__(self) -> Dict[str, Any]:
+    def __call__(self) -> dict[str, Any]:
         """
         Execute a manipulation task with the given constraints.
 
@@ -83,7 +80,7 @@ class Manipulate(AbstractManipulationSkill):
         task = ManipulationTask(
             description=self.description,
             target_object=self.target_object,
-            target_point=tuple(map(int, self.target_point.strip("()").split(","))),
+            target_point=tuple(map(int, self.target_point.strip("()").split(","))),  # type: ignore[arg-type]
             constraints=constraint,
             metadata=metadata,
             timestamp=timestamp,
@@ -92,7 +89,7 @@ class Manipulate(AbstractManipulationSkill):
         )
 
         # Add task to manipulation interface
-        self.manipulation_interface.add_manipulation_task(task)
+        self.manipulation_interface.add_manipulation_task(task)  # type: ignore[union-attr]
 
         # Execute the manipulation
         result = self._execute_manipulation(task)
@@ -109,9 +106,9 @@ class Manipulate(AbstractManipulationSkill):
         Build metadata for the current environment state, including object data and movement tolerances.
         """
         # Get detected objects from the manipulation interface
-        detected_objects = []
+        detected_objects = []  # type: ignore[var-annotated]
         try:
-            detected_objects = self.manipulation_interface.get_latest_objects() or []
+            detected_objects = self.manipulation_interface.get_latest_objects() or []  # type: ignore[union-attr]
         except Exception as e:
             logger.warning(f"Failed to get detected objects: {e}")
 
@@ -122,7 +119,7 @@ class Manipulate(AbstractManipulationSkill):
             objects_by_id[obj_id] = dict(obj)  # Make a copy to avoid modifying original
 
         # Create objects_data dictionary with tolerances applied
-        objects_data: Dict[str, Any] = {}
+        objects_data: dict[str, Any] = {}
 
         # First, apply all specified tolerances
         for object_id, tolerance in self.object_tolerances.items():
@@ -163,7 +160,7 @@ class Manipulate(AbstractManipulationSkill):
         return constraint
 
     # TODO: Implement
-    def _execute_manipulation(self, task: ManipulationTask) -> Dict[str, Any]:
+    def _execute_manipulation(self, task: ManipulationTask) -> dict[str, Any]:
         """
         Execute the manipulation with the given constraint.
 
