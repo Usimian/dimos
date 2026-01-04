@@ -233,7 +233,6 @@ class BBoxAnnotator:
             print("\n⚠ No boxes with questions to save!")
             return
 
-
         # Save to file
         try:
             # Custom YAML formatting to get [x, y] format
