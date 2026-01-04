@@ -51,6 +51,7 @@ class SetupOccupancyGrid:
         self.image_path = image_path
         self.robot_pose = robot_pose
         self.occupancy_grid = self._occupancy_grid_from_image()
+        self.occupancy_grid_image: OccupancyGridImage | None = None
         self.image: Image | None = None
 
     @cached_property
@@ -68,10 +69,7 @@ class SetupOccupancyGrid:
     def pose_stamped(self) -> PoseStamped:
         return PoseStamped(
             frame_id="base_link",
-            position=[
-                i * self.occupancy_grid.info.resolution
-                for i in self.robot_pose["position"]  # convert pixels to meters
-            ],
+            position=self.robot_pose["position"],
             orientation=self.robot_pose["orientation"],
         )
 
@@ -83,6 +81,7 @@ class SetupOccupancyGrid:
             self.occupancy_grid, flip_vertical=False, robot_pose=robot_pose, size=(width, height)
         )
         self.image = og_image.image
+        self.occupancy_grid_image = og_image
 
         return self.image
 
@@ -231,13 +230,21 @@ def publish_state():
 def target_from_llm(vl_model, state: SetupOccupancyGrid, query: str) -> PoseStamped:
     prompt = goal_placement_prompt(query)
     print("prompt is", prompt)
-    response = vl_model.query(state.get_image(), prompt)
+    image = state.get_image()
+    response = vl_model.query(image, prompt)
     print("response is", response)
     point = extract_json_from_llm_response(response)
     x, y = extract_coordinates(point)
+
+    debug_image_with_identified_point(
+        image.to_opencv(),
+        (x, y),
+        filepath="./debug_llm_response.png",
+    )
+    world_pos = state.occupancy_grid_image.pixel_to_world(x, y, size=(image.width, image.height))
     return PoseStamped(
         frame_id="world",
-        position=[x * state.occupancy_grid.resolution, y * state.occupancy_grid.resolution, 0],
+        position=[world_pos.x, world_pos.y, 0],
     )
 
 
