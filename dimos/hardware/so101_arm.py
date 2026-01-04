@@ -25,12 +25,9 @@ import numpy as np
 import pytest
 
 from dimos_lcm.geometry_msgs import Pose as LCMPose, Twist
-import dimos.core as core
 from dimos.core import In, Module, rpc
-import dimos.protocol.service.lcmservice as lcmservice  # noqa: F401
 from dimos.utils.logging_config import setup_logger
-from dimos.utils.transform_utils import euler_to_quaternion, quaternion_to_euler  # noqa: F401
-from dimos.msgs.geometry_msgs import Pose, Vector3  # noqa: F401
+from dimos.msgs.geometry_msgs import Pose
 from dimos.hardware.so101_utils.so101_interface import SO101Interface
 
 logger = setup_logger(__file__)
@@ -143,18 +140,6 @@ class SO101Arm:
         """Open gripper to ~max opening."""
         self.cmd_gripper_ctrl(0.04) # 0.1
 
-    # def get_gripper_feedback(self) -> tuple[float, float]:
-    #     """
-    #     Get gripper position (meters) and normalized effort (0..1).
-
-    #     Under the hood:
-    #       - Feetech Present_Load is approx −1000..1000.
-    #       - We map |load| / 1000 → [0,1].
-    #     """
-    #     position_m, raw_load = self.arm.get_gripper_state()
-    #     norm_effort = min(1.0, raw_load / 1000.0)
-    #     return position_m, norm_effort
-
     def get_gripper_feedback(self) -> tuple[float, float]:
         """
         Get gripper position (meters) and normalized effort (0..1).
@@ -164,36 +149,19 @@ class SO101Arm:
         - We use |load| / 1000 → [0,1].
         """
         position_m, raw_load = self.arm.get_gripper_state()
-
-        # Use magnitude, not signed value
         effort_mag = abs(raw_load)
-
-        # Clamp to nominal range
         effort_mag = min(1000.0, effort_mag)
 
         norm_effort = effort_mag / 1000.0
         return position_m, norm_effort
 
-    # def close_gripper(self, commanded_effort: float = 0.5) -> None:
-    #     """
-    #     Close gripper to 0.0 m.
-
-    #     `commanded_effort` is stored and used as a *threshold* in
-    #     `gripper_object_detected`. It does not send a real torque command.
-    #     """
-    #     self._last_gripper_effort_cmd = commanded_effort
-    #     # Just command closed position; internal servo torque handles gripping
-    #     self.cmd_gripper_ctrl(0.003, effort=commanded_effort)
-
     def close_gripper(self, commanded_effort: float = 0.5) -> None:
         """
         Close gripper until we hit a load threshold, then back off slightly.
 
-        commanded_effort is a *logical* effort in [0,1] used for thresholds.
         """
         self._last_gripper_effort_cmd = commanded_effort
 
-        # Where are we now?
         pos, _ = self.get_gripper_feedback()
         target_closed = 0.0
 

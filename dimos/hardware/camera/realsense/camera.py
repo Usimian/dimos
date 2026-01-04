@@ -25,7 +25,6 @@ import pyrealsense2 as rs  # type: ignore[import-not-found]
 from reactivex import interval
 
 from dimos.core import Module, Out, rpc
-from dimos.msgs.geometry_msgs import PoseStamped, Quaternion, Transform, Vector3
 from dimos.msgs.sensor_msgs import Image, ImageFormat
 from dimos.msgs.std_msgs import Header
 from dimos.protocol.tf import TF

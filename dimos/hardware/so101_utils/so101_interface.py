@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import annotations
-
 import json
 import logging
 import time
@@ -36,7 +34,7 @@ class SO101Interface:
 
     Responsibilities:
       - Feetech bus setup (IDs, calibration, operating modes, PID).
-      - Kinematics via KinpyKinematics (FK / IK / Jacobians).
+      - Kinematics via LerobotKinematics (FK / IK / Jacobians).
       - Joint-space get/set and joint PTP.
       - Cartesian-space PTP + linear interpolation.
       - Gripper position + load feedback.
@@ -68,7 +66,6 @@ class SO101Interface:
         self.gripper_name = "gripper"
         # Joint angle offsets in degrees (motor frame → robot frame)
         # Measured offsets when the arm is mechanically at zero.
-        # self.joint_offsets_deg = np.array([0,0,0,0,0], dtype=float)
         self.joint_offsets_deg = np.array([0,0.26373626, 2.59340659, 0.65934066, 0.21978022], dtype=float)
 
         self.motor_ids: Dict[str, int] = {
@@ -520,7 +517,6 @@ class SO101Interface:
             if "Overload error" in msg or "Overload" in msg:
                 # If overloaded, we likely gripped something hard.
                 # Return max load (1000) so the controller thinks we have contact.
-                # We don't know the position, but 0.0 is safe (closed).
                 return 0.0, 1000.0
             
             logger.warning(f"Failed to read gripper state: {e}")

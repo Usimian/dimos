@@ -16,13 +16,9 @@ import asyncio
 
 # Import LCM message types
 from dimos_lcm.sensor_msgs import CameraInfo
-from dimos.msgs.geometry_msgs import Quaternion, Transform, Vector3
 
 
 from dimos import core
-from dimos.hardware.camera.module import CameraModule
-from dimos.hardware.camera.webcam import Webcam
-from dimos.hardware.so101_arm import SO101Arm
 from dimos.manipulation.visual_servoing.manipulation_module import ManipulationModule
 from dimos.msgs.sensor_msgs import Image
 from dimos.protocol import pubsub
@@ -31,7 +27,7 @@ from dimos.robot.robot import Robot
 from dimos.skills.skills import SkillLibrary
 from dimos.types.robot_capabilities import RobotCapability
 from dimos.utils.logging_config import setup_logger
-from dimos.hardware.camera.realsense import HAS_REALSENSE_SDK, RealSenseCamera, RealSenseModule
+from dimos.hardware.camera.realsense import RealSenseModule
 
 logger = setup_logger("dimos.robot.lerobot.so101_arm")
 
