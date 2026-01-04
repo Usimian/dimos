@@ -172,8 +172,8 @@ point_placement_tests:
     image_path: "floorplan_office_noise_tilt.png"
     resolution: 0.05
     robot_pose:
-      position: [780, 1140, 0.0]
-      orientation: [0.0, 0.0,  0.7071068, 0.7071068]
+      position: [30, 30, 0.0]
+      orientation: [0.0, 0.0,  0.5071068, 0.5071068]
     questions:
       - query: "which would be the furthest room from the robot's current position"
         expected_range:

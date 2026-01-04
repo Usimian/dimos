@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import cached_property
 import json
 from pathlib import Path
 import pickle
@@ -23,10 +24,12 @@ import numpy as np
 import pytest
 
 from dimos.agents2.skills.interpret_map import OccupancyGridImage
+from dimos.core import LCMTransport
 from dimos.models.vl.qwen import QwenVlModel
-from dimos.msgs.geometry_msgs import Pose, Quaternion, Vector3
+from dimos.msgs.geometry_msgs import Pose, PoseStamped, Quaternion, Transform, Vector3
 from dimos.msgs.nav_msgs import OccupancyGrid
 from dimos.msgs.sensor_msgs import Image
+from dimos.protocol.tf import TF
 from dimos.utils.data import get_data
 from dimos.utils.generic import extract_json_from_llm_response
 
@@ -50,14 +53,30 @@ class SetupOccupancyGrid:
         self.occupancy_grid = self._occupancy_grid_from_image()
         self.image: Image | None = None
 
-    def get_image(self):
-        robot_pose = Pose(
+    @cached_property
+    def transforms(self) -> Transform:
+        return [
+            Transform(
+                frame_id="world",
+                child_frame_id="base_link",
+                translation=Vector3(*self.robot_pose["position"]),
+                rotation=Quaternion(*self.robot_pose["orientation"]),
+            )
+        ]
+
+    @cached_property
+    def pose_stamped(self) -> PoseStamped:
+        return PoseStamped(
+            frame_id="base_link",
             position=[
                 i * self.occupancy_grid.info.resolution
                 for i in self.robot_pose["position"]  # convert pixels to meters
             ],
             orientation=self.robot_pose["orientation"],
         )
+
+    def get_image(self):
+        robot_pose = self.pose_stamped
         width, height = self._get_encoded_image_size()
 
         og_image = OccupancyGridImage.from_occupancygrid(
@@ -127,6 +146,7 @@ class SetupOccupancyGrid:
         occupancy_grid.info.height = height
         occupancy_grid.info.resolution = 0.05
         occupancy_grid.grid = grid
+        occupancy_grid.frame_id = "world"
         occupancy_grid.info.origin.position = Vector3(0.0, 0.0, 0.0)
         occupancy_grid.info.origin.orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
 
@@ -186,6 +206,64 @@ def interpretability_prompt(question: str) -> str:
         f"Answer the following question based on this image: {question}\n"
     )
     return prompt
+
+
+@pytest.fixture(scope="session")
+def publish_state():
+    def publish(state: SetupOccupancyGrid, target: PoseStamped | None = None):
+        tf = TF()
+        costmap: LCMTransport[OccupancyGrid] = LCMTransport("/costmap", OccupancyGrid)
+
+        if target:
+            pose: LCMTransport[PoseStamped] = LCMTransport("/target", PoseStamped)
+            pose.publish(target)
+            pose.lcm.stop()
+
+        costmap.publish(state.occupancy_grid)
+        tf.publish(*state.transforms)
+
+        costmap.lcm.stop()
+        tf.stop()
+
+    yield publish
+
+
+def target_from_llm(vl_model, state: SetupOccupancyGrid, query: str) -> PoseStamped:
+    prompt = goal_placement_prompt(query)
+    print("prompt is", prompt)
+    response = vl_model.query(state.get_image(), prompt)
+    print("response is", response)
+    point = extract_json_from_llm_response(response)
+    x, y = extract_coordinates(point)
+    return PoseStamped(
+        frame_id="world",
+        position=[x * state.occupancy_grid.resolution, y * state.occupancy_grid.resolution, 0],
+    )
+
+
+def test_ivan(publish_state, vl_model):
+    def find(lst, predicate):
+        return next((x for x in lst if predicate(x)), None)
+
+    # find where map_id is "office_noise_tilt"
+    cases = load_test_cases(TEST_DIR / "test_map_interpretability.yaml")["point_placement_tests"]
+    test_map = find(cases, lambda c: c["map_id"] == "office_noise_tilt")
+
+    grid_generator = SetupOccupancyGrid(
+        image_path=test_map["image_path"], robot_pose=test_map["robot_pose"]
+    )
+    # image = grid_generator.get_image()
+    width_scale, height_scale = grid_generator.get_grid_to_image_encoding_scale()
+
+    target = target_from_llm(
+        vl_model,
+        grid_generator,
+        "conference room with a bunch of chairs",
+    )
+
+    print("publish target", target)
+
+    publish_state(grid_generator, target)
 
 
 # main tests
@@ -273,10 +351,11 @@ def test_point_placement(test_map, vl_model):
 @pytest.mark.parametrize(
     "test_map",
     [
-        test_map
-        for test_map in load_test_cases(TEST_DIR / "test_map_interpretability.yaml")[
-            "map_comprehension_tests"
-        ]
+        "office"
+        # test_map
+        # for test_map in load_test_cases(TEST_DIR / "test_map_interpretability.yaml")[
+        #    "map_comprehension_tests"
+        # ]
     ],
 )
 def test_map_comprehension(test_map, vl_model):
