@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+import open3d as o3d
 
 from builtin_interfaces.msg import Time as ROSTime
 from dimos_lcm.foxglove_msgs import SceneUpdate
@@ -94,9 +95,6 @@ class ImageDetections3DPC(ImageDetections["Detection3DPC"]):
             frame_id=frame_id,
             timestamp=ts,
         )
-
-        # Set colors on the open3d pointcloud
-        import open3d as o3d
 
         combined_pc.pointcloud.colors = o3d.utility.Vector3dVector(combined_colors)
 

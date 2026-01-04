@@ -18,31 +18,18 @@ from dataclasses import dataclass
 import functools
 from typing import TYPE_CHECKING, Any
 
-import cv2
 from dimos_lcm.builtin_interfaces import Duration
 from dimos_lcm.foxglove_msgs import CubePrimitive, SceneEntity, TextPrimitive
 from dimos_lcm.geometry_msgs import Point, Pose, Quaternion, Vector3 as LCMVector3
 from dimos_lcm.vision_msgs import ObjectHypothesis, ObjectHypothesisWithPose
 import numpy as np
-import open3d as o3d
 
 from dimos.msgs.foxglove_msgs.Color import Color
-from dimos.msgs.geometry_msgs import (
-    Pose,
-    PoseStamped,
-    Quaternion,
-    Quaternion as DimosQuaternion,
-    Transform,
-    Vector3,
-)
-from dimos.msgs.sensor_msgs import Image, PointCloud2
+from dimos.msgs.geometry_msgs import PoseStamped, Quaternion, Transform, Vector3
+from dimos.msgs.sensor_msgs import PointCloud2
 from dimos.msgs.std_msgs import Header
 from dimos.msgs.vision_msgs import Detection3D as ROSDetection3D
-from dimos.perception.detection.type.detection2d.seg import Detection2DSeg
 from dimos.perception.detection.type.detection3d.base import Detection3D
-from dimos.perception.detection.type.detection3d.imageDetections3DPC import (
-    ImageDetections3DPC,
-)
 from dimos.perception.detection.type.detection3d.pointcloud_filters import (
     PointCloudFilter,
     radius_outlier,
@@ -54,12 +41,12 @@ from dimos.types.timestamped import to_ros_stamp
 if TYPE_CHECKING:
     from dimos_lcm.sensor_msgs import CameraInfo
 
-    from dimos.perception.detection.type.detection2d import Detection2DBBox, ImageDetections2D
+    from dimos.perception.detection.type.detection2d import Detection2DBBox
 
 
 @dataclass
 class Detection3DPC(Detection3D):
-    pointcloud: PointCloud2
+    pointcloud: PointCloud2 | None = None
 
     @functools.cached_property
     def center(self) -> Vector3:
@@ -237,132 +224,6 @@ class Detection3DPC(Detection3D):
 
     def scene_entity_label(self) -> str:
         return f"{self.track_id}/{self.name} ({self.confidence:.0%})"
-
-    @classmethod
-    def from_2d_depth(
-        cls,
-        detections_2d: ImageDetections2D,
-        color_image: Image,
-        depth_image: Image,
-        camera_info: CameraInfo,
-        depth_scale: float = 1.0,
-        depth_trunc: float = 10.0,
-        statistical_nb_neighbors: int = 10,
-        statistical_std_ratio: float = 0.5,
-        mask_erode_pixels: int = 3,
-    ) -> ImageDetections3DPC:
-        """Create 3D pointcloud detections from 2D detections and RGBD images.
-
-        Uses Open3D's optimized RGBD projection for efficient processing.
-
-        Args:
-            detections_2d: 2D detections with segmentation masks
-            color_image: RGB color image
-            depth_image: Depth image (in meters if depth_scale=1.0)
-            camera_info: Camera intrinsics
-            depth_scale: Scale factor for depth (1.0 for meters, 1000.0 for mm)
-            depth_trunc: Maximum depth value in meters
-            statistical_nb_neighbors: Neighbors for statistical outlier removal
-            statistical_std_ratio: Std ratio for statistical outlier removal
-            mask_erode_pixels: Number of pixels to erode the mask by to remove
-                              noisy depth edge points. Set to 0 to disable.
-        """
-        color_cv = color_image.to_opencv()
-        if color_cv.ndim == 3 and color_cv.shape[2] == 3:
-            color_cv = cv2.cvtColor(color_cv, cv2.COLOR_BGR2RGB)
-
-        depth_cv = depth_image.to_opencv()
-        h, w = depth_cv.shape[:2]
-
-        # Build Open3D camera intrinsics
-        fx, fy = camera_info.K[0], camera_info.K[4]
-        cx, cy = camera_info.K[2], camera_info.K[5]
-        intrinsic_o3d = o3d.camera.PinholeCameraIntrinsic(w, h, fx, fy, cx, cy)
-
-        identity_transform = Transform(
-            translation=Vector3(0.0, 0.0, 0.0),
-            rotation=DimosQuaternion(0.0, 0.0, 0.0, 1.0),
-            frame_id=depth_image.frame_id,
-            child_frame_id=depth_image.frame_id,
-            ts=depth_image.ts,
-        )
-
-        detections_3d = []
-
-        for det in detections_2d.detections:
-            # Get mask (from segmentation or bbox)
-            if isinstance(det, Detection2DSeg):
-                mask = det.mask
-            else:
-                mask = np.zeros((h, w), dtype=np.uint8)
-                x1, y1, x2, y2 = map(int, det.bbox)
-                x1, y1 = max(0, x1), max(0, y1)
-                x2, y2 = min(w, x2), min(h, y2)
-                mask[y1:y2, x1:x2] = 255
-
-            # Erode mask to remove noisy depth edge points
-            if mask_erode_pixels > 0:
-                mask_uint8 = mask.astype(np.uint8)
-                if mask_uint8.max() == 1:
-                    mask_uint8 = mask_uint8 * 255
-                kernel_size = 2 * mask_erode_pixels + 1
-                erode_kernel = cv2.getStructuringElement(
-                    cv2.MORPH_ELLIPSE, (kernel_size, kernel_size)
-                )
-                mask = cv2.erode(mask_uint8, erode_kernel)
-
-            # Apply mask to depth - set non-masked pixels to 0
-            depth_masked = depth_cv.copy()
-            depth_masked[mask == 0] = 0
-
-            # Use Open3D's optimized RGBD-to-pointcloud (single C++ call)
-            rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-                o3d.geometry.Image(color_cv.astype(np.uint8)),
-                o3d.geometry.Image(depth_masked.astype(np.float32)),
-                depth_scale=depth_scale,
-                depth_trunc=depth_trunc,
-                convert_rgb_to_intensity=False,
-            )
-            pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, intrinsic_o3d)
-
-            if len(pcd.points) < 4:
-                continue
-
-            # Single statistical outlier removal (efficient)
-            pcd_filtered, _ = pcd.remove_statistical_outlier(
-                nb_neighbors=statistical_nb_neighbors,
-                std_ratio=statistical_std_ratio,
-            )
-
-            if len(pcd_filtered.points) < 4:
-                continue
-
-            # Wrap in PointCloud2
-            pc = PointCloud2(
-                pcd_filtered,
-                frame_id=depth_image.frame_id,
-                ts=depth_image.ts,
-            )
-
-            detections_3d.append(
-                cls(
-                    image=det.image,
-                    bbox=det.bbox,
-                    track_id=det.track_id,
-                    class_id=det.class_id,
-                    confidence=det.confidence,
-                    name=det.name,
-                    ts=det.ts,
-                    pointcloud=pc,
-                    transform=identity_transform,
-                    frame_id=depth_image.frame_id,
-                )
-            )
-
-        return ImageDetections3DPC(
-            detections=detections_3d,
-            image=color_image,
-        )
 
     @classmethod
     def from_2d(

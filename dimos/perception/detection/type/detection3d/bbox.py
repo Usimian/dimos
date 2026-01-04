@@ -33,11 +33,11 @@ class Detection3DBBox(Detection2DBBox):
     Represents a 3D detection as an oriented bounding box in world space.
     """
 
-    transform: Transform  # Camera to world transform
-    frame_id: str  # Frame ID (e.g., "world", "map")
-    center: Vector3  # Center point in world frame
-    size: Vector3  # Width, height, depth
-    orientation: tuple[float, float, float, float]  # Quaternion (x, y, z, w)
+    transform: Transform | None = None  # Camera to world transform
+    frame_id: str = ""  # Frame ID (e.g., "world", "map")
+    center: Vector3 | None = None  # Center point in world frame
+    size: Vector3 | None = None  # Width, height, depth
+    orientation: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)  # Quaternion (x, y, z, w)
 
     @functools.cached_property
     def pose(self) -> PoseStamped:

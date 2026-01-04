@@ -39,7 +39,7 @@ from dimos.core import Module, rpc
 from dimos.msgs.sensor_msgs import CameraInfo, Image
 from dimos.perception.detection.detectors.yoloe import Yoloe2DDetector, YoloePromptMode
 from dimos.perception.detection.type import ImageDetections2D
-from dimos.perception.detection.type.detection3d.pointcloud import Detection3DPC
+from dimos.perception.detection.type.detection3d.object import Object, aggregate_pointclouds, to_detection3d_array
 from dimos.utils.logging_config import setup_logger
 
 logger = setup_logger()
@@ -314,23 +314,21 @@ class ObjectSceneRegistrationModule(Module):
         if self._camera_info is None:
             return
 
-        # Convert 2D segmentation to 3D pointcloud detections
-        detections_3d = Detection3DPC.from_2d_depth(
+        objects = Object.from_2d(
             detections_2d=detections_2d,
             color_image=color_image,
             depth_image=depth_image,
             camera_info=self._camera_info,
         )
 
-        if not detections_3d or len(detections_3d.detections) == 0:
+        if not objects:
             return
 
-        # Publish 3D detection array
-        ros_detections_3d = detections_3d.to_ros_detection3d_array()
+        detections_3d = to_detection3d_array(objects)
+        ros_detections_3d = detections_3d.to_ros_msg()
         self._detections_3d_pub.publish(ros_detections_3d)
 
-        # Publish aggregated pointcloud
-        aggregated_pc = detections_3d.get_aggregated_objects_pointcloud()
+        aggregated_pc = aggregate_pointclouds(objects)
         if aggregated_pc is not None:
             ros_pc = aggregated_pc.to_ros_msg()
             ros_pc.header = header

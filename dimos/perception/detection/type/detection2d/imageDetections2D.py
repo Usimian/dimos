@@ -55,8 +55,10 @@ class ImageDetections2D(ImageDetections[Detection2D]):
         return cls(image=image, detections=detections)
 
     @classmethod
-    def from_ultralytics_result(  # type: ignore[no-untyped-def]
-        cls, image: Image, results: list[Results], **kwargs
+    def from_ultralytics_result(
+        cls,
+        image: Image,
+        results: list[Results],
     ) -> ImageDetections2D:
         """Create ImageDetections2D from ultralytics Results.
 
@@ -68,7 +70,6 @@ class ImageDetections2D(ImageDetections[Detection2D]):
         Args:
             image: Source image
             results: List of ultralytics Results objects
-            **kwargs: Additional arguments passed to detection constructors
 
         Returns:
             ImageDetections2D containing appropriate detection types
