@@ -89,6 +89,9 @@ def prepare_urdf_for_drake(
     else:
         urdf_content = urdf_path.read_text()
 
+    # Strip transmission blocks (Drake doesn't need them, and they can cause issues)
+    urdf_content = _strip_transmission_blocks(urdf_content)
+
     # Resolve package:// URIs
     urdf_content = _resolve_package_uris(urdf_content, package_paths, cache_path)
 
@@ -109,11 +112,18 @@ def _generate_cache_key(
     xacro_args: dict[str, str],
     convert_meshes: bool,
 ) -> str:
-    """Generate a cache key for the URDF configuration."""
+    """Generate a cache key for the URDF configuration.
+    
+    Includes a version number to invalidate cache when processing logic changes.
+    """
     # Include file modification time
     mtime = urdf_path.stat().st_mtime if urdf_path.exists() else 0
+    
+    # Version number to invalidate cache when processing logic changes
+    # Increment this when adding new processing steps (e.g., stripping transmission blocks)
+    processing_version = "v2"
 
-    key_data = f"{urdf_path}:{mtime}:{sorted(package_paths.items())}:{sorted(xacro_args.items())}:{convert_meshes}"
+    key_data = f"{processing_version}:{urdf_path}:{mtime}:{sorted(package_paths.items())}:{sorted(xacro_args.items())}:{convert_meshes}"
     return hashlib.md5(key_data.encode()).hexdigest()[:16]
 
 
@@ -159,6 +169,33 @@ def _process_xacro(
     finally:
         # Restore original function
         substitution_args._find = original_find
+
+
+def _strip_transmission_blocks(urdf_content: str) -> str:
+    """Remove transmission blocks from URDF content.
+    
+    Drake doesn't need transmission blocks (they're for Gazebo/ROS control),
+    and they can cause parsing errors if they contain malformed actuator names.
+    
+    Args:
+        urdf_content: URDF XML content as string
+        
+    Returns:
+        URDF content with transmission blocks removed
+    """
+    # Pattern to match <transmission>...</transmission> blocks (including nested content)
+    # Uses non-greedy matching and handles nested tags
+    pattern = r'<transmission[^>]*>.*?</transmission>'
+    
+    # Remove transmission blocks (with flags for multiline and dotall)
+    result = re.sub(pattern, '', urdf_content, flags=re.DOTALL | re.MULTILINE)
+    
+    # Also remove any standalone <gazebo> blocks that might reference transmissions
+    # (some URDFs have gazebo plugins that reference transmissions)
+    gazebo_pattern = r'<gazebo>.*?<plugin[^>]*gazebo_ros_control[^>]*>.*?</plugin>.*?</gazebo>'
+    result = re.sub(gazebo_pattern, '', result, flags=re.DOTALL | re.MULTILINE)
+    
+    return result
 
 
 def _resolve_package_uris(
