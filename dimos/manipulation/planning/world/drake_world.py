@@ -729,11 +729,9 @@ class DrakeWorld:
         with self._lock:
             self._set_positions_internal(self._plant_context, robot_id, positions)
 
-            # Update visualization
-            if self._meshcat_visualizer is not None:
-                self._meshcat_visualizer.ForcedPublish(
-                    self._diagram.GetSubsystemContext(self._meshcat_visualizer, self._live_context)
-                )
+            # NOTE: ForcedPublish is intentionally NOT called here.
+            # Calling ForcedPublish from the LCM callback thread blocks message processing.
+            # Visualization can be updated via publish_to_meshcat() from non-callback contexts.
 
     # ============= State Operations (context-based) =============
 
