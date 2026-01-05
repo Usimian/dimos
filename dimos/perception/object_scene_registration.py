@@ -358,7 +358,9 @@ class ObjectSceneRegistrationModule(Module):
                             obj.mesh_dimensions = result.get("mesh_dimensions")
                             obj.fp_position = result.get("fp_position")
                             obj.fp_orientation = result.get("fp_orientation")
-                            obj.camera_transform = camera_transform  # Request-time transform (debug/reference)
+                            obj.camera_transform = (
+                                camera_transform  # Request-time transform (debug/reference)
+                            )
 
                             # Freeze world-frame pose at mesh completion time to prevent drift.
                             if (
