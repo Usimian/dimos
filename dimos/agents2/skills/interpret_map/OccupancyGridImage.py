@@ -57,6 +57,7 @@ class OccupancyGridImage:
         self.robot_pose = robot_pose
         self.grid_to_pix_matrix: NDArray[np.float64] | None = None
         self.rotated_image_size: tuple[int, int] | None = None
+        self.robot_pixel_coord = self._get_robot_pixel(image.data, color=[0, 255, 0])
 
     @classmethod
     def from_occupancygrid(
@@ -180,28 +181,12 @@ class OccupancyGridImage:
         min_dimension = min(height, width)
 
         robot_radius = max(3, int(min_dimension * 0.015))  # At least 3 pixels
-        arrow_length = max(10, int(min_dimension * 0.035))
+        max(10, int(min_dimension * 0.035))
 
-        line_thickness = max(1, int(min_dimension * 0.005))
+        max(1, int(min_dimension * 0.005))
 
         # robot marker
-        cv2.circle(image_arr, (rgx, rgy), robot_radius, (255, 0, 0), -1)
-
-        # orientation arrow
-        yaw = robot_pose.orientation.euler[2]
-
-        print(f"{yaw=}")
-        arrow_dx = -int(arrow_length * np.sin(yaw))
-        arrow_dy = -int(arrow_length * np.cos(yaw))  # account for y + down in image space
-
-        cv2.arrowedLine(
-            image_arr,
-            (rgx, rgy),
-            (rgx + arrow_dx, rgy + arrow_dy),
-            (255, 0, 0),
-            line_thickness,
-            tipLength=0.5,
-        )
+        cv2.circle(image_arr, (rgx, rgy), robot_radius, (0, 255, 0), -1)
 
         return image_arr
 
@@ -241,6 +226,28 @@ class OccupancyGridImage:
             rotation_matrix.astype(np.float64),
             (new_width, new_height),
         )
+
+    @staticmethod
+    def _get_robot_pixel(image_arr: NDArray[np.uint8], color: list[int]) -> tuple[int, int]:
+        """
+        Find the pixel coordinates of the robot in the image.
+
+        args:
+            image_arr: RGB image array of shape (height, width, 3)
+            color: RGB color values [R, G, B] that denote the robot
+
+        returns:
+            Tuple of (row, col) pixel coordinates where the robot is found
+        """
+        # create a mask where all three color channels match
+        mask = np.all(image_arr == color, axis=-1)
+        rows, cols = np.where(mask)
+
+        # return center pixel
+        if len(rows) > 0:
+            return (int(np.mean(cols)), int(np.mean(rows)))  # x, y
+
+        raise ValueError(f"Robot with color {color} not found in image")
 
     def is_free_space(
         self,

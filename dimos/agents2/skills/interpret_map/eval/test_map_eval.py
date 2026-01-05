@@ -25,6 +25,8 @@ import pytest
 
 from dimos.agents2.skills.interpret_map import OccupancyGridImage
 from dimos.core import LCMTransport
+# from dimos.models.vl.moondream import MoondreamVlModel
+# from dimos.models.vl.openai import OpenAIVlModel
 from dimos.models.vl.qwen import QwenVlModel
 from dimos.msgs.geometry_msgs import Pose, PoseStamped, Quaternion, Transform, Vector3
 from dimos.msgs.nav_msgs import OccupancyGrid
@@ -166,6 +168,8 @@ def load_test_cases(filepath: str):
 @pytest.fixture
 def vl_model():
     return QwenVlModel()
+    # return OpenAIVlModel()
+    # return MoondreamVlModel()
 
 
 def extract_coordinates(point: dict | None) -> list | str:
@@ -179,24 +183,28 @@ def extract_coordinates(point: dict | None) -> list | str:
     return point["point"]
 
 
-def goal_placement_prompt(description: str) -> str:
+def goal_placement_prompt(description: str, robot_pixel_coord: tuple[int, int]) -> str:
     prompt = (
         "Look at this image carefully \n"
-        "it represents a noisy 2D occupancy grid map where,\n"
+        "it represents a 2D map percieved from above (like a floor plan).\n"
         " - white pixels represent free space, \n"
         " - gray pixels represent unexplored space, \n"
         " - black pixels are obstacles and walls, \n"
-        " - red circle represents the robot's position and the attached arrow indicates the direction it is facing. \n"
+        " - green circle represents the robot.\n"
+        "The image has been rotated so that the robot always faces straight upwards.\n"
+        "- The robot's front is towards the of the image.\n"
+        "- The robot's back is towards the bottom.\n"
+        "- The robot's left is towards the left.\n"
+        "- The robot's right is towards the right.\n"
         f"Identify a location in free space based on the following description: {description}\n"
+        f"Metadata - pixel coordinates of robot (x, y): {robot_pixel_coord}\n"
+        "Guildelines for identified location: \n"
+        " - the point should be reacheable by the robot following a reasonable path through free space"
+        " - never place the location on thick walls or obstacles."
+        " - maintain clearance of few pixels and find the nearest clear location that still matches the general direction and description.\n"
         "Return ONLY a JSON object with this exact format:\n"
         '{"point": [x, y]}\n'
-        f"where x,y are the pixel coordinates of the goal position in the image. \n"
-        "The image has been rotated so that the robot always faces straight upwards."
-        "- The robot's front is towards the top edge of the image."
-        "- The robot's back is towards the bottom edge."
-        "- The robot's left is towards the left edge."
-        "- The robot's right is towards the right edge."
-        "Make sure the goal point is accessible to the robot via free space."
+        f"where x,y are the pixel coordinates of the identified location in the image. \n"
     )
 
     return prompt
@@ -205,16 +213,16 @@ def goal_placement_prompt(description: str) -> str:
 def interpretability_prompt(question: str) -> str:
     prompt = (
         "Look at this image carefully \n"
-        "it represents a noisy 2D occupancy grid map where,\n"
+        "it represents a 2D map perceived by a robot from above (like a floor plan).\n"
         " - white pixels represent free space, \n"
         " - gray pixels represent unexplored space, \n"
         " - black pixels are obstacles and walls, \n"
-        " - red circle represents the robot's position and the attached arrow indicates the direction it is facing. \n"
+        " - red pixels represent the robot.\n"
         "The image has been rotated so that the robot always faces straight upwards."
-        "- The robot's front is towards the top edge of the image."
-        "- The robot's back is towards the bottom edge."
-        "- The robot's left is towards the left edge."
-        "- The robot's right is towards the right edge."
+        "- The robot's front is towards the of the image."
+        "- The robot's back is towards the bottom."
+        "- The robot's left is towards the left."
+        "- The robot's right is towards the right."
         f"Answer the following question based on this image: {question}\n"
     )
     return prompt
@@ -318,6 +326,7 @@ def test_point_placement(test_map, vl_model):
         image_path=test_map["image_path"], robot_pose=test_map["robot_pose"]
     )
     image = grid_generator.get_image()
+    robot_pixel_coord = grid_generator.occupancy_grid_image.robot_pixel_coord
     width_scale, height_scale = grid_generator.get_grid_to_image_encoding_scale()
 
     # query and score responses
@@ -325,7 +334,7 @@ def test_point_placement(test_map, vl_model):
     failed = []
 
     for qna in test_map["questions"]:
-        prompt = goal_placement_prompt(qna["query"])
+        prompt = goal_placement_prompt(qna["query"], robot_pixel_coord)
         response = vl_model.query(image, prompt)
         point = extract_json_from_llm_response(response)
         x, y = extract_coordinates(point)
@@ -334,7 +343,7 @@ def test_point_placement(test_map, vl_model):
 
         x_px = round(x * width_scale)
         y_px = round(y * height_scale)
-        debug_path = f"./{test_map['map_id']}_{qna['query'].replace(' ', '_')}.png"
+        debug_path = f"./eval_data/{test_map['map_id']}_{qna['query'].replace(' ', '_')}.png"
 
         if (
             expected_area["x"][0] <= x_px <= expected_area["x"][1]
@@ -347,7 +356,6 @@ def test_point_placement(test_map, vl_model):
                 (x, y),
                 filepath=debug_path,
             )
-
             failed.append(
                 f"Query:\n  {qna['query']}\n"
                 f"Predicted (px): ({x_px}, {y_px})\n"
@@ -355,6 +363,12 @@ def test_point_placement(test_map, vl_model):
                 f"Expected Y range: {expected_area['y']}\n"
                 f"Debug image: {debug_path}\n"
             )
+
+        debug_image_with_identified_point(
+            image.to_opencv(),
+            (x, y),
+            filepath=debug_path,
+        )
 
     total = len(test_map["questions"])
     pass_rate = score / total
@@ -375,11 +389,11 @@ def test_point_placement(test_map, vl_model):
 @pytest.mark.parametrize(
     "test_map",
     [
-        "office"
-        # test_map
-        # for test_map in load_test_cases(TEST_DIR / "test_map_interpretability.yaml")[
-        #    "map_comprehension_tests"
-        # ]
+        # "office"
+        test_map
+        for test_map in load_test_cases(TEST_DIR / "test_map_interpretability.yaml")[
+            "map_comprehension_tests"
+        ]
     ],
 )
 def test_map_comprehension(test_map, vl_model):
@@ -434,5 +448,5 @@ def debug_image_with_identified_point(image_frame, point: tuple[int, int], filep
     """Utility to visualize identified points on the image for debugging."""
     debug_image = image_frame.copy()
     x, y = point
-    cv2.drawMarker(debug_image, (x, y), (0, 255, 0), cv2.MARKER_CROSS, 15, 2)
+    cv2.drawMarker(debug_image, (x, y), (255, 0, 0), cv2.MARKER_CROSS, 15, 2)
     cv2.imwrite(filepath, debug_image)
