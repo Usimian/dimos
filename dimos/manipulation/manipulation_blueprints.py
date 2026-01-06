@@ -107,14 +107,14 @@ xarm6_manipulation = autoconnect(
         robot_urdf_path=_get_xarm_urdf_path(),
         robot_name="xarm6",
         joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"],
-        end_effector_link="link6",
+        end_effector_link="link_tcp",  # Gripper TCP
         base_link="link_base",
         max_velocity=1.0,
         max_acceleration=2.0,
         planning_timeout=10.0,
         enable_viz=True,
         package_paths=_get_xarm_package_paths(),
-        xacro_args={"dof": "6", "limited": "true"},
+        xacro_args={"dof": "6", "limited": "true", "add_gripper": "true"},
     ),
     joint_trajectory_controller(
         control_frequency=100.0,
@@ -188,14 +188,14 @@ xarm6_planner_only = manipulation_module(
     robot_urdf_path=_get_xarm_urdf_path(),
     robot_name="xarm6",
     joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"],
-    end_effector_link="link6",
+    end_effector_link="link_tcp",  # Gripper TCP
     base_link="link_base",
     max_velocity=1.0,
     max_acceleration=2.0,
     planning_timeout=10.0,
     enable_viz=True,
     package_paths=_get_xarm_package_paths(),
-    xacro_args={"dof": "6", "limited": "true"},
+    xacro_args={"dof": "6", "limited": "true", "add_gripper": "true"},
 ).transports(
     {
         # Subscribe to joint state from driver
