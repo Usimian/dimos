@@ -116,7 +116,7 @@ class NavigationSkillContainer(SkillModule):
 
     @skill()
     def navigate_to_detected_object(self, object_name: str) -> str:
-        """Navigate to an object that was detected by the vision system.
+        """Navigate to an object or person that was detected by the vision system.
 
         This uses ObjectDB to find objects that were previously seen and tracked.
         Only use this for specific objects like "cup", "red box", "person", "chair".
