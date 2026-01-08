@@ -141,7 +141,7 @@ else
             shift
             ;;
         pull)
-            docker pull ghcr.io/dimensionalos/dev:dev
+            docker pull ghcr.io/dimensionalos/ros-python:dev
             shift
             ;;
         *)
