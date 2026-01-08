@@ -225,22 +225,29 @@ class GO2Connection(Module, spec.Camera, spec.Pointcloud):
         """
         connect_rerun(global_config=self._global_config)
 
-        # Set up world coordinate system AND register it as a named frame
-        # This is KEY - it connects entity paths to the named frame system
-        rr.log(
-            "world",
-            rr.ViewCoordinates.RIGHT_HAND_Z_UP,
-            rr.CoordinateFrame("world"),  # type: ignore[attr-defined]
-            static=True,
-        )
+        # Global view coordinates (applies to views at/under this origin).
+        rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
 
-        # Bridge the named frame "world" to the implicit frame hierarchy "tf#/world"
-        # This connects TF named frames to entity path hierarchy
+        # Attach semantic entity paths to the named TF frame graph without explicitly
+        # introducing `tf#/...` strings into the code.
+        #
+        # - `world` entity path: its implicit frame (tf#/world) is a child of the named frame "world".
+        # - `world/robot` entity path: its implicit frame (tf#/world/robot) is a child of the named frame "base_link".
         rr.log(
             "world",
             rr.Transform3D(
+                translation=[0.0, 0.0, 0.0],
+                rotation=rr.Quaternion(xyzw=[0.0, 0.0, 0.0, 1.0]),
                 parent_frame="world",  # type: ignore[call-arg]
-                child_frame="tf#/world",  # type: ignore[call-arg]
+            ),
+            static=True,
+        )
+        rr.log(
+            "world/robot",
+            rr.Transform3D(
+                translation=[0.0, 0.0, 0.0],
+                rotation=rr.Quaternion(xyzw=[0.0, 0.0, 0.0, 1.0]),
+                parent_frame="base_link",  # type: ignore[call-arg]
             ),
             static=True,
         )
@@ -253,6 +260,21 @@ class GO2Connection(Module, spec.Camera, spec.Pointcloud):
                 static=True,
             )
             logger.info(f"Loaded URDF from {_GO2_URDF}")
+
+        # Visual axes attached to the robot (moves via the `world/robot` attachment above).
+        rr.log("world/robot/axes", rr.TransformAxes3D(0.5), static=True)  # type: ignore[attr-defined]
+
+        # Attach camera entity to the named TF frame "camera_optical" so the frustum + image
+        # move purely via TF, not via manual rr.Transform3D logging in the data path.
+        rr.log(
+            "world/robot/camera",
+            rr.Transform3D(
+                translation=[0.0, 0.0, 0.0],
+                rotation=rr.Quaternion(xyzw=[0.0, 0.0, 0.0, 1.0]),
+                parent_frame="camera_optical",  # type: ignore[call-arg]
+            ),
+            static=True,
+        )
 
         # Log static camera pinhole (for frustum)
         rr.log("world/robot/camera", _camera_info_static().to_rerun(), static=True)
@@ -298,42 +320,6 @@ class GO2Connection(Module, spec.Camera, spec.Pointcloud):
         self.tf.publish(*transforms)
         if self.odom.transport:
             self.odom.publish(msg)
-
-        # Log to Rerun: robot pose (relative to parent entity "world")
-        rr.log(
-            "world/robot",
-            rr.Transform3D(
-                translation=[msg.x, msg.y, msg.z],
-                rotation=rr.Quaternion(
-                    xyzw=[
-                        msg.orientation.x,
-                        msg.orientation.y,
-                        msg.orientation.z,
-                        msg.orientation.w,
-                    ]
-                ),
-            ),
-        )
-        # Log axes as a child entity for visualization
-        rr.log("world/robot/axes", rr.TransformAxes3D(0.5))  # type: ignore[attr-defined]
-
-        # Log camera transform (compose base_link -> camera_link -> camera_optical)
-        # transforms[1] is camera_link, transforms[2] is camera_optical
-        cam_tf = transforms[1] + transforms[2]  # compose transforms
-        rr.log(
-            "world/robot/camera",
-            rr.Transform3D(
-                translation=[cam_tf.translation.x, cam_tf.translation.y, cam_tf.translation.z],
-                rotation=rr.Quaternion(
-                    xyzw=[
-                        cam_tf.rotation.x,
-                        cam_tf.rotation.y,
-                        cam_tf.rotation.z,
-                        cam_tf.rotation.w,
-                    ]
-                ),
-            ),
-        )
 
     def publish_camera_info(self) -> None:
         while True:
