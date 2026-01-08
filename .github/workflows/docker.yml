@@ -217,14 +217,17 @@ jobs:
       dev-image: ros-dev:${{ (needs.check-changes.outputs.python == 'true' || needs.check-changes.outputs.dev == 'true' || needs.check-changes.outputs.ros == 'true') && needs.ros-dev.result == 'success' && needs.check-changes.outputs.branch-tag || 'dev' }}
 
   check-markdown:
-    needs: [check-changes]
-    runs-on: [self-hosted, Linux]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: leshy/md-babel-py@main
-        with:
-          files: 'README.md docs/*.md'
-          fail-on-change: true
+    needs: [check-changes, dev]
+    if: always()
+    uses: ./.github/workflows/tests.yml
+    with:
+      should-run: ${{
+        needs.check-changes.result == 'success' &&
+        ((needs.dev.result == 'success') ||
+        (needs.dev.result == 'skipped'))
+        }}
+      cmd: "pip install md-babel-py && md-babel-py run README.md && md-babel-py run docs/*.md && git diff --exit-code"
+      dev-image: dev:${{ (needs.check-changes.outputs.python == 'true' || needs.check-changes.outputs.dev == 'true') && needs.dev.result == 'success' && needs.check-changes.outputs.branch-tag || 'dev' }}
 
   # Run module tests directly to avoid pytest forking issues
   # run-module-tests:
