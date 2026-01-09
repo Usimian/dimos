@@ -67,6 +67,7 @@ class Object3D(Detection3DPC):
         self.track_id = track_id
         self.class_id = detection.class_id
         self.name = detection.name
+        self.yolo_label = detection.name
         self.confidence = detection.confidence
         self.pointcloud = detection.pointcloud
         self.bbox = detection.bbox
