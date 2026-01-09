@@ -43,12 +43,13 @@ from dimos.navigation.frontier_exploration import (
 from dimos.navigation.replanning_a_star.module import (
     replanning_a_star_planner,
 )
-from dimos.perception.detection.moduleDB import ObjectDBModule, detectionDB_module
+from dimos.perception.detection.module3D import Detection3DModule, detection3d_module
 from dimos.perception.spatial_perception import spatial_memory
 from dimos.protocol.mcp.mcp import MCPModule
 from dimos.robot.foxglove_bridge import foxglove_bridge
 from dimos.robot.unitree.connection.go2 import GO2Connection, go2_connection
 from dimos.robot.unitree_webrtc.unitree_skill_container import unitree_skills
+from dimos.skills.visual_nav2 import VisNavSkills, vis_nav_skills
 from dimos.utils.monitoring import utilization
 from dimos.web.websocket_vis.websocket_vis_module import websocket_vis
 
@@ -70,8 +71,8 @@ mac = autoconnect(
     }
 )
 
-
 linux = autoconnect(foxglove_bridge())
+
 
 basic = autoconnect(
     go2_connection(),
@@ -88,45 +89,47 @@ nav = autoconnect(
     wavefront_frontier_explorer(),
 ).global_config(n_dask_workers=6, robot_model="unitree_go2")
 
+
 detection = (
     autoconnect(
         nav,
-        detectionDB_module(
+        detection3d_module(
             camera_info=GO2Connection.camera_info_static,
         ),
+        vis_nav_skills(),
     )
     .remappings(
         [
-            (ObjectDBModule, "pointcloud", "global_map"),
+            (Detection3DModule, "pointcloud", "global_map"),
         ]
     )
     .transports(
         {
             # Detection 3D module outputs
-            ("detections", ObjectDBModule): LCMTransport(
-                "/detector3d/detections", Detection2DArray
-            ),
-            ("annotations", ObjectDBModule): LCMTransport(
+            #            ("detections", ObjectDBModule): LCMTransport(
+            #                "/detector3d/detections", Detection2DArray
+            #            ),
+            ("annotations", Detection3DModule): LCMTransport(
                 "/detector3d/annotations", ImageAnnotations
             ),
-            #            ("scene_update", ObjectDBModule): LCMTransport(
+            #            ("scene_update", Detection3DModule): LCMTransport(
             #                "/detector3d/scene_update", SceneUpdate
             #            ),
-            ("detected_pointcloud_0", ObjectDBModule): LCMTransport(
+            ("detected_pointcloud_0", Detection3DModule): LCMTransport(
                 "/detector3d/pointcloud/0", PointCloud2
             ),
-            ("detected_pointcloud_1", ObjectDBModule): LCMTransport(
+            ("detected_pointcloud_1", Detection3DModule): LCMTransport(
                 "/detector3d/pointcloud/1", PointCloud2
             ),
-            ("detected_pointcloud_2", ObjectDBModule): LCMTransport(
+            ("detected_pointcloud_2", Detection3DModule): LCMTransport(
                 "/detector3d/pointcloud/2", PointCloud2
             ),
-            ("detected_image_0", ObjectDBModule): LCMTransport("/detector3d/image/0", Image),
-            ("detected_image_1", ObjectDBModule): LCMTransport("/detector3d/image/1", Image),
-            ("detected_image_2", ObjectDBModule): LCMTransport("/detector3d/image/2", Image),
+            ("detected_image_0", Detection3DModule): LCMTransport("/detector3d/image/0", Image),
+            ("detected_image_1", Detection3DModule): LCMTransport("/detector3d/image/1", Image),
+            ("detected_image_2", Detection3DModule): LCMTransport("/detector3d/image/2", Image),
         }
     )
-)
+).global_config(n_dask_workers=8)
 
 
 spatial = autoconnect(
