@@ -21,14 +21,16 @@ This driver:
 """
 
 from dataclasses import dataclass, field
+import logging
 import threading
 import time
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 from dimos.core import In, Module, ModuleConfig, Out, rpc
 from dimos.hardware.manipulators.spec import (
     ControlMode,
-    DriverStatus,
     JointLimits,
     ManipulatorBackend,
     ManipulatorInfo,
@@ -114,7 +116,8 @@ class XArm(Module[XArmConfig]):
         )
 
         # Threading state
-        self._running = False
+        self._stop_event = threading.Event()
+        self._stop_event.set()  # Initially stopped
         self._control_thread: threading.Thread | None = None
         self._monitor_thread: threading.Thread | None = None
 
@@ -122,13 +125,10 @@ class XArm(Module[XArmConfig]):
         self._dof: int = self.config.dof
         self._joint_names: list[str] = [f"joint{i + 1}" for i in range(self._dof)]
 
-        # Auto-connect on initialization
-        self._auto_start()
-
     def _auto_start(self) -> None:
         """Auto-connect to hardware on initialization."""
         if not self.backend.connect():
-            print(f"WARNING: Failed to connect to XArm at {self.config.ip}")
+            logger.warning(f"Failed to connect to XArm at {self.config.ip}")
             return
 
         # Update DOF from backend (in case it differs)
@@ -136,7 +136,7 @@ class XArm(Module[XArmConfig]):
         self._joint_names = [f"joint{i + 1}" for i in range(self._dof)]
 
         # Start threads
-        self._running = True
+        self._stop_event.clear()  # Clear stop event to indicate running
 
         self._control_thread = threading.Thread(
             target=self._control_loop,
@@ -172,25 +172,25 @@ class XArm(Module[XArmConfig]):
 
     def _on_joint_position_command(self, cmd: JointCommand) -> None:
         """Handle incoming joint position command."""
-        if not self._running:
+        if self._stop_event.is_set():
             return
 
         positions = list(cmd.positions) if cmd.positions else []
         if len(positions) != self._dof:
-            print(f"WARNING: Position command has {len(positions)} joints, expected {self._dof}")
+            logger.warning(f"Position command has {len(positions)} joints, expected {self._dof}")
             return
 
         self.backend.write_joint_positions(positions)
 
     def _on_joint_velocity_command(self, cmd: JointCommand) -> None:
         """Handle incoming joint velocity command."""
-        if not self._running:
+        if self._stop_event.is_set():
             return
 
         # JointCommand uses 'positions' field for velocity commands too
         velocities = list(cmd.positions) if cmd.positions else []
         if len(velocities) != self._dof:
-            print(f"WARNING: Velocity command has {len(velocities)} joints, expected {self._dof}")
+            logger.warning(f"Velocity command has {len(velocities)} joints, expected {self._dof}")
             return
 
         self.backend.write_joint_velocities(velocities)
@@ -200,23 +200,20 @@ class XArm(Module[XArmConfig]):
     # =========================================================================
 
     @rpc
-    def start(self) -> DriverStatus:
+    def start(self) -> None:
         """Connect to XArm and start control loops (if not already running)."""
-        super().start()  # Important: sets up transports
+        if not self._stop_event.is_set():
+            # Already running
+            return
 
-        if self._running:
-            # Already connected, just subscribe to commands
-            self._subscribe_to_commands()
-            return DriverStatus.CONNECTED
-
+        super().start()  # Sets up transports
         self._auto_start()
         self._subscribe_to_commands()
-        return DriverStatus.CONNECTED if self._running else DriverStatus.ERROR
 
     @rpc
     def stop(self) -> None:
         """Stop XArm and disconnect."""
-        self._running = False
+        self._stop_event.set()
 
         # Stop motion first
         try:
@@ -246,7 +243,7 @@ class XArm(Module[XArmConfig]):
         """High-frequency loop for joint state publishing."""
         period = 1.0 / self.config.control_rate
 
-        while self._running:
+        while not self._stop_event.is_set():
             start = time.perf_counter()
 
             try:
@@ -283,7 +280,7 @@ class XArm(Module[XArmConfig]):
         """Low-frequency loop for robot state monitoring."""
         period = 1.0 / self.config.monitor_rate
 
-        while self._running:
+        while not self._stop_event.is_set():
             start = time.perf_counter()
 
             try:

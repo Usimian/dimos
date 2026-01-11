@@ -339,258 +339,296 @@ def wait_for_completion(client: OrchestratorClient, task_name: str, timeout: flo
     return False
 
 
-def print_help(num_joints: int, task_name: str) -> None:
-    """Print help message."""
-    joint_args = " ".join([f"<j{i + 1}>" for i in range(num_joints)])
+class OrchestratorShell:
+    """IPython shell interface for orchestrator control."""
 
-    print("\n" + "=" * 70)
-    print(f"Orchestrator Client - Task: {task_name} ({num_joints} joints)")
-    print("=" * 70)
-    print("\nWaypoint Commands:")
-    print(f"  add {joint_args}")
-    print("                         - Add waypoint (values in degrees)")
-    print("  here                   - Add current position as waypoint")
-    print("  list                   - List all waypoints")
-    print("  delete <n>             - Delete waypoint n")
-    print("  clear                  - Clear all waypoints")
-    print("\nTrajectory Commands:")
-    print("  preview                - Preview generated trajectory")
-    print("  run                    - Execute trajectory")
-    print("  status                 - Show task status")
-    print("  cancel                 - Cancel active trajectory")
-    print("\nMulti-Arm Commands:")
-    print("  tasks                  - List all tasks")
-    print("  switch <task>          - Switch to different task")
-    print("  hw                     - List hardware")
-    print("  joints                 - List joints for current task")
-    print("\nSettings:")
-    print("  current                - Show current joint positions")
-    print("  vel <value>            - Set max velocity (rad/s)")
-    print("  accel <value>          - Set max acceleration (rad/s^2)")
-    print("  help                   - Show this help")
-    print("  quit                   - Exit")
-    print("=" * 70)
+    def __init__(self, client: OrchestratorClient, initial_task: str) -> None:
+        self._client = client
+        self._current_task = initial_task
+        self._waypoints: list[list[float]] = []
+        self._generated_trajectory: JointTrajectory | None = None
+
+        if not client.select_task(initial_task):
+            raise ValueError(f"Failed to select task: {initial_task}")
+
+    def _joints(self) -> list[str]:
+        return self._client.get_task_joints(self._current_task)
+
+    def _num_joints(self) -> int:
+        return len(self._joints())
+
+    def help(self) -> None:
+        """Show available commands."""
+        print("\nOrchestrator Client Commands:")
+        print("=" * 60)
+        print("Waypoint Commands:")
+        print("  here()                 - Add current position as waypoint")
+        print("  add(j1, j2, ...)       - Add waypoint (degrees)")
+        print("  waypoints()            - List all waypoints")
+        print("  delete(n)              - Delete waypoint n")
+        print("  clear()                - Clear all waypoints")
+        print("\nTrajectory Commands:")
+        print("  preview()              - Preview generated trajectory")
+        print("  run()                  - Execute trajectory")
+        print("  status()               - Show task status")
+        print("  cancel()               - Cancel active trajectory")
+        print("\nMulti-Arm Commands:")
+        print("  tasks()                - List all tasks")
+        print("  switch('task_name')    - Switch to different task")
+        print("  hw()                   - List hardware")
+        print("  joints()               - List joints for current task")
+        print("\nSettings:")
+        print("  current()              - Show current joint positions")
+        print("  vel(value)             - Set max velocity (rad/s)")
+        print("  accel(value)           - Set max acceleration (rad/s^2)")
+        print("=" * 60)
+
+    def here(self) -> None:
+        """Add current position as waypoint."""
+        positions = self._client.get_current_positions(self._current_task)
+        if positions:
+            self._waypoints.append(positions)
+            self._generated_trajectory = None
+            print(f"Added waypoint {len(self._waypoints)}: {format_positions(positions)}")
+        else:
+            print("Could not get current positions")
+
+    def add(self, *joints: float) -> None:
+        """Add waypoint with specified joint values (in degrees)."""
+        num_joints = self._num_joints()
+        if len(joints) != num_joints:
+            print(f"Need {num_joints} joint values, got {len(joints)}")
+            return
+
+        rad_joints = [math.radians(j) for j in joints]
+        self._waypoints.append(rad_joints)
+        self._generated_trajectory = None
+        print(f"Added waypoint {len(self._waypoints)}: {format_positions(rad_joints)}")
+
+    def waypoints(self) -> None:
+        """List all waypoints."""
+        preview_waypoints(self._waypoints, self._joints())
+
+    def delete(self, index: int) -> None:
+        """Delete a waypoint by index (1-based)."""
+        idx = index - 1
+        if 0 <= idx < len(self._waypoints):
+            self._waypoints.pop(idx)
+            self._generated_trajectory = None
+            print(f"Deleted waypoint {index}")
+        else:
+            print(f"Invalid index (1-{len(self._waypoints)})")
+
+    def clear(self) -> None:
+        """Clear all waypoints."""
+        self._waypoints.clear()
+        self._generated_trajectory = None
+        print("Cleared waypoints")
+
+    def preview(self) -> None:
+        """Preview generated trajectory."""
+        if len(self._waypoints) < 2:
+            print("Need at least 2 waypoints")
+            return
+        try:
+            self._generated_trajectory = self._client.generate_trajectory(
+                self._waypoints, self._current_task
+            )
+            if self._generated_trajectory:
+                preview_trajectory(self._generated_trajectory, self._joints())
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def run(self) -> None:
+        """Execute trajectory."""
+        if len(self._waypoints) < 2:
+            print("Need at least 2 waypoints")
+            return
+
+        if self._generated_trajectory is None:
+            self._generated_trajectory = self._client.generate_trajectory(
+                self._waypoints, self._current_task
+            )
+
+        if self._generated_trajectory is None:
+            print("Failed to generate trajectory")
+            return
+
+        preview_trajectory(self._generated_trajectory, self._joints())
+        confirm = input("\nExecute? [y/N]: ").strip().lower()
+        if confirm == "y":
+            if self._client.execute_trajectory(self._current_task, self._generated_trajectory):
+                print("Trajectory started...")
+                wait_for_completion(self._client, self._current_task)
+            else:
+                print("Failed to start trajectory")
+
+    def status(self) -> None:
+        """Show task status."""
+        status = self._client.get_trajectory_status(self._current_task)
+        print(f"\nTask: {self._current_task}")
+        print(f"  Active: {status.get('active', False)}")
+        print(f"  State: {status.get('state', 'UNKNOWN')}")
+        if "progress" in status:
+            print(f"  Progress: {status['progress'] * 100:.1f}%")
+
+    def cancel(self) -> None:
+        """Cancel active trajectory."""
+        if self._client.cancel_trajectory(self._current_task):
+            print("Cancelled")
+        else:
+            print("Cancel failed")
+
+    def tasks(self) -> None:
+        """List all tasks."""
+        all_tasks = self._client.list_tasks()
+        active = self._client.get_active_tasks()
+        print("\nTasks:")
+        for t in all_tasks:
+            marker = "* " if t == self._current_task else "  "
+            active_marker = " [ACTIVE]" if t in active else ""
+            t_joints = self._client.get_task_joints(t)
+            joint_count = len(t_joints) if t_joints else "?"
+            print(f"{marker}{t} ({joint_count} joints){active_marker}")
+
+    def switch(self, task_name: str) -> None:
+        """Switch to a different task."""
+        if self._client.select_task(task_name):
+            self._current_task = task_name
+            self._waypoints.clear()
+            self._generated_trajectory = None
+            joints = self._joints()
+            print(f"Switched to {self._current_task} ({len(joints)} joints)")
+            print(f"Joints: {', '.join(joints)}")
+        else:
+            print(f"Failed to switch to {task_name}")
+
+    def hw(self) -> None:
+        """List hardware."""
+        hardware = self._client.list_hardware()
+        print(f"\nHardware: {', '.join(hardware)}")
+
+    def joints(self) -> None:
+        """List joints for current task."""
+        joints = self._joints()
+        print(f"\nJoints for {self._current_task}:")
+        for i, j in enumerate(joints):
+            pos = self._client.get_joint_positions().get(j, 0.0)
+            print(f"  {i + 1}. {j}: {math.degrees(pos):.1f} deg")
+
+    def current(self) -> None:
+        """Show current joint positions."""
+        positions = self._client.get_current_positions(self._current_task)
+        if positions:
+            print(f"Current: {format_positions(positions)}")
+        else:
+            print("Could not get positions")
+
+    def vel(self, value: float | None = None) -> None:
+        """Set or show max velocity (rad/s)."""
+        if value is None:
+            gen = self._client._generators.get(self._current_task)
+            if gen:
+                print(f"Max velocity: {gen.max_velocity[0]:.2f} rad/s")
+            return
+
+        if value <= 0:
+            print("Velocity must be positive")
+            return
+
+        self._client.set_velocity_limit(value, self._current_task)
+        self._generated_trajectory = None
+        print(f"Max velocity: {value:.2f} rad/s")
+
+    def accel(self, value: float | None = None) -> None:
+        """Set or show max acceleration (rad/s^2)."""
+        if value is None:
+            gen = self._client._generators.get(self._current_task)
+            if gen:
+                print(f"Max acceleration: {gen.max_acceleration[0]:.2f} rad/s^2")
+            return
+
+        if value <= 0:
+            print("Acceleration must be positive")
+            return
+
+        self._client.set_acceleration_limit(value, self._current_task)
+        self._generated_trajectory = None
+        print(f"Max acceleration: {value:.2f} rad/s^2")
 
 
 def interactive_mode(client: OrchestratorClient, initial_task: str) -> None:
-    """Interactive mode for trajectory planning and execution."""
-    # Setup initial task
-    if not client.select_task(initial_task):
-        print(f"Failed to select task: {initial_task}")
-        return
+    """Start IPython interactive mode."""
+    import IPython
 
-    current_task = initial_task
-    waypoints: list[list[float]] = []
-    generated_trajectory: JointTrajectory | None = None
+    shell = OrchestratorShell(client, initial_task)
 
-    joints = client.get_task_joints(current_task)
-    num_joints = len(joints)
+    print("\n" + "=" * 60)
+    print(f"Orchestrator Client (IPython) - Task: {initial_task}")
+    print("=" * 60)
+    print(f"Joints: {', '.join(shell._joints())}")
+    print("\nType help() for available commands")
+    print("=" * 60 + "\n")
 
-    print_help(num_joints, current_task)
+    IPython.start_ipython(
+        argv=[],
+        user_ns={
+            "help": shell.help,
+            "here": shell.here,
+            "add": shell.add,
+            "waypoints": shell.waypoints,
+            "delete": shell.delete,
+            "clear": shell.clear,
+            "preview": shell.preview,
+            "run": shell.run,
+            "status": shell.status,
+            "cancel": shell.cancel,
+            "tasks": shell.tasks,
+            "switch": shell.switch,
+            "hw": shell.hw,
+            "joints": shell.joints,
+            "current": shell.current,
+            "vel": shell.vel,
+            "accel": shell.accel,
+            "client": client,
+            "shell": shell,
+        },
+    )
 
+
+def _run_client(client: OrchestratorClient, task: str, vel: float, accel: float) -> int:
+    """Run the client with the given configuration."""
     try:
-        while True:
-            # Prompt shows task and waypoint count
-            active = client.get_active_tasks()
-            active_marker = "*" if current_task in active else ""
-            prompt = f"[{current_task}{active_marker}:{len(waypoints)}wp] > "
+        hardware = client.list_hardware()
+        tasks = client.list_tasks()
 
-            try:
-                line = input(prompt).strip()
-            except EOFError:
-                break
+        if not hardware:
+            print("\nWarning: No hardware found. Is the orchestrator running?")
+            print("Start with: dimos run orchestrator-mock")
+            response = input("Continue anyway? [y/N]: ").strip().lower()
+            if response != "y":
+                return 0
+        else:
+            print(f"Hardware: {', '.join(hardware)}")
+            print(f"Tasks: {', '.join(tasks)}")
 
-            if not line:
-                continue
+    except Exception as e:
+        print(f"\nConnection error: {e}")
+        print("Make sure orchestrator is running: dimos run orchestrator-mock")
+        return 1
 
-            parts = line.split()
-            cmd = parts[0].lower()
+    if task not in tasks and tasks:
+        print(f"\nTask '{task}' not found.")
+        print(f"Available: {', '.join(tasks)}")
+        task = tasks[0]
+        print(f"Using '{task}'")
 
-            # === Waypoint commands ===
+    if client.select_task(task):
+        client.set_velocity_limit(vel, task)
+        client.set_acceleration_limit(accel, task)
 
-            if cmd == "add":
-                if len(parts) < num_joints + 1:
-                    print(f"Need {num_joints} joint values")
-                    continue
-                values = parse_joint_input(" ".join(parts[1 : num_joints + 1]), num_joints)
-                if values:
-                    waypoints.append(values)
-                    generated_trajectory = None
-                    print(f"Added waypoint {len(waypoints)}: {format_positions(values)}")
-                else:
-                    print(f"Invalid values. Need {num_joints} numbers (degrees)")
-
-            elif cmd == "here":
-                positions = client.get_current_positions(current_task)
-                if positions:
-                    waypoints.append(positions)
-                    generated_trajectory = None
-                    print(f"Added waypoint {len(waypoints)}: {format_positions(positions)}")
-                else:
-                    print("Could not get current positions")
-
-            elif cmd == "list":
-                preview_waypoints(waypoints, joints)
-
-            elif cmd == "delete":
-                if len(parts) < 2:
-                    print("Usage: delete <n>")
-                    continue
-                try:
-                    idx = int(parts[1]) - 1
-                    if 0 <= idx < len(waypoints):
-                        waypoints.pop(idx)
-                        generated_trajectory = None
-                        print(f"Deleted waypoint {idx + 1}")
-                    else:
-                        print(f"Invalid index (1-{len(waypoints)})")
-                except ValueError:
-                    print("Invalid index")
-
-            elif cmd == "clear":
-                waypoints.clear()
-                generated_trajectory = None
-                print("Cleared waypoints")
-
-            # === Trajectory commands ===
-
-            elif cmd == "preview":
-                if len(waypoints) < 2:
-                    print("Need at least 2 waypoints")
-                    continue
-                try:
-                    generated_trajectory = client.generate_trajectory(waypoints, current_task)
-                    if generated_trajectory:
-                        preview_trajectory(generated_trajectory, joints)
-                except Exception as e:
-                    print(f"Error: {e}")
-
-            elif cmd == "run":
-                if len(waypoints) < 2:
-                    print("Need at least 2 waypoints")
-                    continue
-
-                if generated_trajectory is None:
-                    generated_trajectory = client.generate_trajectory(waypoints, current_task)
-
-                if generated_trajectory is None:
-                    print("Failed to generate trajectory")
-                    continue
-
-                preview_trajectory(generated_trajectory, joints)
-                confirm = input("\nExecute? [y/N]: ").strip().lower()
-                if confirm == "y":
-                    if client.execute_trajectory(current_task, generated_trajectory):
-                        print("Trajectory started...")
-                        wait_for_completion(client, current_task)
-                    else:
-                        print("Failed to start trajectory")
-
-            elif cmd == "status":
-                status = client.get_trajectory_status(current_task)
-                print(f"\nTask: {current_task}")
-                print(f"  Active: {status.get('active', False)}")
-                print(f"  State: {status.get('state', 'UNKNOWN')}")
-                if "progress" in status:
-                    print(f"  Progress: {status['progress'] * 100:.1f}%")
-
-            elif cmd == "cancel":
-                if client.cancel_trajectory(current_task):
-                    print("Cancelled")
-                else:
-                    print("Cancel failed")
-
-            # === Multi-arm commands ===
-
-            elif cmd == "tasks":
-                tasks = client.list_tasks()
-                active = client.get_active_tasks()
-                print("\nTasks:")
-                for t in tasks:
-                    marker = "* " if t == current_task else "  "
-                    active_marker = " [ACTIVE]" if t in active else ""
-                    t_joints = client.get_task_joints(t) if t in client._task_joints else []
-                    joint_count = len(t_joints) if t_joints else "?"
-                    print(f"{marker}{t} ({joint_count} joints){active_marker}")
-
-            elif cmd == "switch":
-                if len(parts) < 2:
-                    print("Usage: switch <task_name>")
-                    continue
-                new_task = parts[1]
-                if client.select_task(new_task):
-                    current_task = new_task
-                    joints = client.get_task_joints(current_task)
-                    num_joints = len(joints)
-                    waypoints.clear()
-                    generated_trajectory = None
-                    print(f"Switched to {current_task} ({num_joints} joints)")
-                    print(f"Joints: {', '.join(joints)}")
-
-            elif cmd == "hw":
-                hardware = client.list_hardware()
-                print(f"\nHardware: {', '.join(hardware)}")
-
-            elif cmd == "joints":
-                print(f"\nJoints for {current_task}:")
-                for i, j in enumerate(joints):
-                    pos = client.get_joint_positions().get(j, 0.0)
-                    print(f"  {i + 1}. {j}: {math.degrees(pos):.1f} deg")
-
-            # === Settings ===
-
-            elif cmd == "current":
-                positions = client.get_current_positions(current_task)
-                if positions:
-                    print(f"Current: {format_positions(positions)}")
-                else:
-                    print("Could not get positions")
-
-            elif cmd == "vel":
-                if len(parts) < 2:
-                    gen = client._generators.get(current_task)
-                    if gen:
-                        print(f"Max velocity: {gen.max_velocity[0]:.2f} rad/s")
-                    continue
-                try:
-                    vel = float(parts[1])
-                    if vel <= 0:
-                        print("Velocity must be positive")
-                    else:
-                        client.set_velocity_limit(vel, current_task)
-                        generated_trajectory = None
-                        print(f"Max velocity: {vel:.2f} rad/s")
-                except ValueError:
-                    print("Invalid velocity")
-
-            elif cmd == "accel":
-                if len(parts) < 2:
-                    gen = client._generators.get(current_task)
-                    if gen:
-                        print(f"Max acceleration: {gen.max_acceleration[0]:.2f} rad/s^2")
-                    continue
-                try:
-                    accel = float(parts[1])
-                    if accel <= 0:
-                        print("Acceleration must be positive")
-                    else:
-                        client.set_acceleration_limit(accel, current_task)
-                        generated_trajectory = None
-                        print(f"Max acceleration: {accel:.2f} rad/s^2")
-                except ValueError:
-                    print("Invalid acceleration")
-
-            elif cmd == "help":
-                print_help(num_joints, current_task)
-
-            elif cmd in ("quit", "exit", "q"):
-                break
-
-            else:
-                print(f"Unknown command: {cmd} (type 'help' for commands)")
-
-    except KeyboardInterrupt:
-        print("\n\nExiting...")
+    interactive_mode(client, task)
+    return 0
 
 
 def main() -> int:
@@ -638,47 +676,10 @@ Examples:
     print("\nConnecting to ControlOrchestrator via RPC...")
 
     client = OrchestratorClient()
-
-    # Check connection
     try:
-        hardware = client.list_hardware()
-        tasks = client.list_tasks()
-
-        if not hardware:
-            print("\nWarning: No hardware found. Is the orchestrator running?")
-            print("Start with: dimos run orchestrator-mock")
-            response = input("Continue anyway? [y/N]: ").strip().lower()
-            if response != "y":
-                client.stop()
-                return 0
-        else:
-            print(f"Hardware: {', '.join(hardware)}")
-            print(f"Tasks: {', '.join(tasks)}")
-
-    except Exception as e:
-        print(f"\nConnection error: {e}")
-        print("Make sure orchestrator is running: dimos run orchestrator-mock")
-        client.stop()
-        return 1
-
-    # Find initial task
-    if args.task not in tasks and tasks:
-        print(f"\nTask '{args.task}' not found.")
-        print(f"Available: {', '.join(tasks)}")
-        args.task = tasks[0]
-        print(f"Using '{args.task}'")
-
-    # Set velocity/acceleration limits
-    if client.select_task(args.task):
-        client.set_velocity_limit(args.vel, args.task)
-        client.set_acceleration_limit(args.accel, args.task)
-
-    try:
-        interactive_mode(client, args.task)
+        return _run_client(client, args.task, args.vel, args.accel)
     finally:
         client.stop()
-
-    return 0
 
 
 if __name__ == "__main__":
