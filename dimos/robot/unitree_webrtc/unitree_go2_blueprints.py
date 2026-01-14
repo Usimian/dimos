@@ -39,9 +39,12 @@ from dimos.mapping.costmapper import cost_mapper
 from dimos.mapping.voxels import voxel_mapper
 from dimos.msgs.sensor_msgs import Image, PointCloud2
 from dimos.msgs.vision_msgs import Detection2DArray
+from dimos.navigation.bt_navigator.navigator import behavior_tree_navigator
 from dimos.navigation.frontier_exploration import (
     wavefront_frontier_explorer,
 )
+from dimos.navigation.global_planner.planner import astar_planner
+from dimos.navigation.local_planner.holonomic_local_planner import holonomic_local_planner
 from dimos.navigation.replanning_a_star.module import (
     replanning_a_star_planner,
 )
@@ -92,7 +95,17 @@ basic = autoconnect(
 
 nav = autoconnect(
     basic,
-    voxel_mapper(voxel_size=0.1),
+    voxel_mapper(voxel_size=0.05),
+    cost_mapper(),
+    astar_planner(),
+    holonomic_local_planner(),
+    behavior_tree_navigator(),
+    wavefront_frontier_explorer(),
+).global_config(n_dask_workers=6, robot_model="unitree_go2")
+
+test_nav = autoconnect(
+    basic,
+    voxel_mapper(voxel_size=0.05),
     cost_mapper(),
     replanning_a_star_planner(),
     wavefront_frontier_explorer(),
