@@ -27,6 +27,28 @@ When `--telemetry` is enabled, `dimos run` also:
 - sets `RERUN_SAVE=1` for the current process
 - tees all console output (stdout/stderr) to `logs/runs/<run_id>/console_output.log`
 
+## Generate an interactive HTML report
+
+To view a run as an interactive Plotly HTML report, install the viewer deps (for now we reuse the existing extra):
+
+```bash
+uv pip install 'dimos[manipulation]'
+```
+
+Then generate/open the report:
+
+```bash
+dimos telemetry view logs/runs/<run_id>
+```
+
+Or for the most recent run:
+
+```bash
+dimos telemetry view --latest
+```
+
+This writes `report.html` into the run directory and auto-opens it in your browser. Use `--no-open` to disable auto-open.
+
 ## Output directory layout
 
 When enabled, DimOS creates a new run directory under:

@@ -39,6 +39,9 @@ main = typer.Typer(
     no_args_is_help=True,
 )
 
+telemetry_app = typer.Typer(help="Telemetry tools")
+main.add_typer(telemetry_app, name="telemetry")
+
 _console_tee_lock = threading.Lock()
 
 
@@ -235,6 +238,52 @@ def run(
                     tee_file.close()
             except Exception:
                 pass
+
+
+@telemetry_app.command()
+def view(
+    run_dir: Path | None = typer.Argument(
+        None,
+        help="Telemetry run directory (e.g. logs/runs/<run_id>). Omit with --latest.",
+    ),
+    latest: bool = typer.Option(False, "--latest", help="Use latest run under logs/runs/."),
+    out: Path | None = typer.Option(
+        None,
+        "--out",
+        help="Output HTML path (default: <run_dir>/report.html).",
+    ),
+    no_open: bool = typer.Option(False, "--no-open", help="Do not auto-open the report in a browser."),
+    max_points: int = typer.Option(
+        5000,
+        "--max-points",
+        help="Max points per series to keep Plotly responsive (stride downsample).",
+    ),
+    top_n_topics: int = typer.Option(
+        10,
+        "--top-n-topics",
+        help="Top N LCM topics to include for the topic dropdown (ranked by total_bytes).",
+    ),
+) -> None:
+    """Generate an interactive Plotly HTML report for a telemetry run."""
+    try:
+        from dimos.utils.telemetry_view.io import ensure_run_dir_has_data, resolve_run_dir
+        from dimos.utils.telemetry_view.report import generate_report
+
+        rd = resolve_run_dir(run_dir, latest=latest)
+        ensure_run_dir_has_data(rd)
+
+        out_path = out or (rd / "report.html")
+        p = generate_report(
+            run_dir=rd,
+            out_path=out_path,
+            max_points=max_points,
+            top_n_topics=top_n_topics,
+            open_browser=not no_open,
+        )
+        typer.echo(f"Wrote report: {p}")
+    except Exception as e:
+        typer.echo(str(e))
+        raise typer.Exit(code=1) from e
 
 
 @main.command()
