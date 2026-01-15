@@ -42,17 +42,12 @@ from dimos.msgs.sensor_msgs import (  # type: ignore[attr-defined]
     RobotState,
 )
 from dimos.msgs.trajectory_msgs import JointTrajectory
-from dimos.simulation.sim import sim
+from dimos.simulation.manipulators.simulation import simulation
 
-xarm7_trajectory_sim = autoconnect(
-    sim(
-        robot="xarm7_mj_description",
-        config_path=None,
-        headless=True,
-    ),
-    joint_trajectory_controller(
-        control_frequency=100.0,
-    ),
+xarm7_trajectory_sim = simulation(
+    robot="xarm7_mj_description",
+    config_path=None,
+    headless=False,
 ).transports(
     {
         ("joint_state", JointState): LCMTransport("/xarm/joint_states", JointState),

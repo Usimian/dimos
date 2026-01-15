@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""MuJoCo simulation bridge base classes and utilities."""
+"""MuJoCo simulation backend utilities."""
 
-from dimos.simulation.manipulators.mujoco_sim.bridge_base import MujocoSimBridgeBase
+from dimos.simulation.manipulators.mujoco_sim_backend import MujocoSimBackend
 
-__all__ = ["MujocoSimBridgeBase"]
+__all__ = ["MujocoSimBackend"]

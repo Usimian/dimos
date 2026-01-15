@@ -12,17 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Base class for MuJoCo simulation bridges.
-
-This base class provides common infrastructure for connecting MuJoCo simulation
-with robot arm drivers, allowing the same driver code to work with both hardware
-and simulation.
-"""
 
 from __future__ import annotations
 
-from abc import ABC
 from pathlib import Path
 import threading
 import time
@@ -36,9 +28,9 @@ from dimos.utils.logging_config import setup_logger
 logger = setup_logger()
 
 
-class MujocoSimBridgeBase:
+class MujocoSimBackend:
     """
-    Base class for MuJoCo simulation bridges that connect simulation with robot drivers.
+    Base class for MuJoCo simulation backend.
 
     This class handles:
     - MuJoCo model loading
@@ -57,7 +49,7 @@ class MujocoSimBridgeBase:
         headless: bool = False,
     ):
         """
-        Initialize the MuJoCo simulation bridge.
+        Initialize the MuJoCo simulation backend.
 
         Args:
             robot: Robot description name (e.g., "piper", "xarm7_mj_description").
@@ -200,7 +192,7 @@ class MujocoSimBridgeBase:
 
     @property
     def connected(self) -> bool:
-        """Whether the bridge is connected to simulation."""
+        """Whether the backend is connected to simulation."""
         with self._lock:
             return self._connected
 

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""MuJoCo-native xArm simulation driver and SDK wrapper."""
+"""Robot-agnostic MuJoCo simulation driver."""
 
 import logging
 import math
@@ -25,35 +25,37 @@ from dimos.hardware.manipulators.base import (
     StandardStatusComponent,
 )
 from dimos.hardware.manipulators.base.sdk_interface import BaseManipulatorSDK, ManipulatorInfo
-from dimos.simulation.manipulators.mujoco_sim import MujocoSimBridgeBase
+from dimos.simulation.manipulators import MujocoSimBackend
 
 logger = logging.getLogger(__name__)
 
 
-class XArmSimSDKWrapper(BaseManipulatorSDK):
-    """SDK wrapper for xArm simulation using the MuJoCo bridge."""
+class SimSDKWrapper(BaseManipulatorSDK):
+    """SDK wrapper for a generic MuJoCo simulation backend."""
 
     def __init__(self) -> None:
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.native_sdk: Any = None
-        self.dof = 7
+        self.native_sdk: MujocoSimBackend | None = None
+        self.dof = 0
         self._connected = False
         self._servos_enabled = False
         self._mode = 0
         self._state = 0
+        self._robot = "unknown"
 
     def connect(self, config: dict[str, Any]) -> bool:
-        """Connect to the MuJoCo xArm simulation backend."""
+        """Connect to the MuJoCo simulation backend."""
         try:
             robot = config.get("robot")
             if not robot:
                 raise ValueError("robot is required for MuJoCo simulation loading")
+            self._robot = str(robot)
             config_path = config.get("config_path")
             headless = bool(config.get("headless", False))
 
             self.logger.info("Connecting to MuJoCo Sim...")
-            self.native_sdk = MujocoSimBridgeBase(
-                robot=robot,
+            self.native_sdk = MujocoSimBackend(
+                robot=self._robot,
                 config_path=config_path,
                 headless=headless,
             )
@@ -64,11 +66,11 @@ class XArmSimSDKWrapper(BaseManipulatorSDK):
                 self._servos_enabled = True
                 self._state = 0
                 self._mode = 0
-                self.dof = int(config.get("dof", self.native_sdk.num_joints))
-                self.logger.info(f"Successfully connected to MuJoCo Sim (DOF: {self.dof})")
+                self.dof = int(self.native_sdk.num_joints)
+                self.logger.info("Successfully connected to MuJoCo Sim", extra={"dof": self.dof})
                 return True
 
-            self.logger.error("Failed to connect to XArm Sim")
+            self.logger.error("Failed to connect to MuJoCo Sim")
             return False
         except Exception as exc:
             self.logger.error(f"Sim connection failed: {exc}")
@@ -87,13 +89,13 @@ class XArmSimSDKWrapper(BaseManipulatorSDK):
         return bool(self._connected and self.native_sdk and self.native_sdk.connected)
 
     def get_joint_positions(self) -> list[float]:
-        return self.native_sdk.joint_positions[: self.dof]
+        return self.native_sdk.joint_positions[: self.dof] if self.native_sdk else []
 
     def get_joint_velocities(self) -> list[float]:
-        return self.native_sdk.joint_velocities[: self.dof]
+        return self.native_sdk.joint_velocities[: self.dof] if self.native_sdk else []
 
     def get_joint_efforts(self) -> list[float]:
-        return self.native_sdk.joint_efforts[: self.dof]
+        return self.native_sdk.joint_efforts[: self.dof] if self.native_sdk else []
 
     def set_joint_positions(
         self,
@@ -105,14 +107,14 @@ class XArmSimSDKWrapper(BaseManipulatorSDK):
         _ = _velocity
         _ = _acceleration
         _ = _wait
-        if not self._servos_enabled:
+        if not self._servos_enabled or not self.native_sdk:
             return False
         self._mode = 0
         self.native_sdk.set_joint_position_targets(positions[: self.dof])
         return True
 
     def set_joint_velocities(self, velocities: list[float]) -> bool:
-        if not self._servos_enabled:
+        if not self._servos_enabled or not self.native_sdk:
             return False
         self._mode = 1
         dt = 1.0 / self.native_sdk.control_frequency
@@ -127,6 +129,8 @@ class XArmSimSDKWrapper(BaseManipulatorSDK):
         return False
 
     def stop_motion(self) -> bool:
+        if not self.native_sdk:
+            return False
         self.native_sdk.hold_current_position()
         self._state = 0
         return True
@@ -144,15 +148,14 @@ class XArmSimSDKWrapper(BaseManipulatorSDK):
         return self._servos_enabled
 
     def get_robot_state(self) -> dict[str, Any]:
-        is_moving = any(abs(v) > 1e-4 for v in self.native_sdk.joint_velocities[: self.dof])
+        velocities = self.native_sdk.joint_velocities[: self.dof] if self.native_sdk else []
+        is_moving = any(abs(v) > 1e-4 for v in velocities)
         self._state = 1 if is_moving else 0
         return {
             "state": self._state,
             "mode": self._mode,
             "error_code": 0,
-            "warn_code": 0,
             "is_moving": is_moving,
-            "cmd_num": 0,
         }
 
     def get_error_code(self) -> int:
@@ -166,33 +169,35 @@ class XArmSimSDKWrapper(BaseManipulatorSDK):
         return True
 
     def emergency_stop(self) -> bool:
+        if self.native_sdk:
+            self.native_sdk.hold_current_position()
         self._state = 3
-        self.native_sdk.hold_current_position()
         return True
 
     def get_info(self) -> ManipulatorInfo:
         return ManipulatorInfo(
-            vendor="UFACTORY",
-            model=f"xArm{self.dof}",
+            vendor="MuJoCo",
+            model=self._robot,
             dof=self.dof,
             firmware_version=None,
             serial_number=None,
         )
 
     def get_joint_limits(self) -> tuple[list[float], list[float]]:
-        if self.dof == 7:
-            lower_deg = [-360, -118, -360, -233, -360, -97, -360]
-            upper_deg = [360, 118, 360, 11, 360, 180, 360]
-        elif self.dof == 6:
-            lower_deg = [-360, -118, -225, -11, -360, -97]
-            upper_deg = [360, 118, 11, 225, 360, 180]
-        else:
-            lower_deg = [-360, -118, -225, -97, -360]
-            upper_deg = [360, 118, 11, 180, 360]
-
-        lower_rad = [math.radians(d) for d in lower_deg[: self.dof]]
-        upper_rad = [math.radians(d) for d in upper_deg[: self.dof]]
-        return (lower_rad, upper_rad)
+        if not self.native_sdk:
+            return ([], [])
+        ranges = getattr(self.native_sdk.model, "jnt_range", None)
+        if ranges is None or len(ranges) == 0:
+            lower = [-math.pi] * self.dof
+            upper = [math.pi] * self.dof
+            return (lower, upper)
+        limit = min(len(ranges), self.dof)
+        lower = [float(ranges[i][0]) for i in range(limit)]
+        upper = [float(ranges[i][1]) for i in range(limit)]
+        if limit < self.dof:
+            lower.extend([-math.pi] * (self.dof - limit))
+            upper.extend([math.pi] * (self.dof - limit))
+        return (lower, upper)
 
     def get_velocity_limits(self) -> list[float]:
         max_vel_rad = math.radians(180.0)
@@ -203,18 +208,13 @@ class XArmSimSDKWrapper(BaseManipulatorSDK):
         return [max_acc_rad] * self.dof
 
 
-class XArmSimDriver(BaseManipulatorDriver):
-    """xArm driver backed by the MuJoCo simulation bridge."""
+class SimDriver(BaseManipulatorDriver):
+    """Generic manipulator driver backed by MuJoCo."""
 
     def __init__(self, **kwargs: Any) -> None:
         config: dict[str, Any] = kwargs.pop("config", {})
 
         driver_params = [
-            "dof",
-            "has_gripper",
-            "has_force_torque",
-            "control_rate",
-            "monitor_rate",
             "robot",
             "config_path",
             "headless",
@@ -223,10 +223,9 @@ class XArmSimDriver(BaseManipulatorDriver):
             if param in kwargs:
                 config[param] = kwargs.pop(param)
 
-        logger.info(f"Initializing XArmSimDriver with config: {config}")
+        logger.info(f"Initializing SimDriver with config: {config}")
 
-        sdk = XArmSimSDKWrapper()
-        sdk.dof = int(config.get("dof", sdk.dof))
+        sdk = SimSDKWrapper()
         components = [
             StandardMotionComponent(sdk),
             StandardServoComponent(sdk),
@@ -241,23 +240,18 @@ class XArmSimDriver(BaseManipulatorDriver):
             sdk=sdk,
             components=components,
             config=config,
-            name="XArmSimDriver",
+            name="SimDriver",
             **kwargs,
         )
 
-        logger.info("XArmSimDriver initialized successfully")
+        logger.info("SimDriver initialized successfully")
 
 
 def get_blueprint() -> dict[str, Any]:
     return {
-        "name": "XArmSimDriver",
-        "class": XArmSimDriver,
+        "name": "SimDriver",
+        "class": SimDriver,
         "config": {
-            "dof": 7,
-            "has_gripper": False,
-            "has_force_torque": False,
-            "control_rate": 100,
-            "monitor_rate": 10,
             "robot": None,
             "config_path": None,
             "headless": False,
@@ -273,11 +267,11 @@ def get_blueprint() -> dict[str, Any]:
     }
 
 
-xarm_sim_driver = XArmSimDriver.blueprint
+simulation = SimDriver.blueprint
 
 __all__ = [
-    "XArmSimDriver",
-    "XArmSimSDKWrapper",
+    "SimDriver",
+    "SimSDKWrapper",
     "get_blueprint",
-    "xarm_sim_driver",
+    "simulation",
 ]
