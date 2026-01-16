@@ -152,17 +152,24 @@ class RawROS(PubSub[ROSTopic, Any]):
 
     def _spin(self) -> None:
         """Background thread for spinning the ROS executor."""
-        while self._running and self._executor:
-            self._executor.spin_once(timeout_sec=0)  # Non-blocking for max throughput
+        while self._running:
+            executor = self._executor
+            if executor is None:
+                break
+            executor.spin_once(timeout_sec=0)  # Non-blocking for max throughput
 
     def _get_or_create_publisher(self, topic: ROSTopic) -> Any:
         """Get existing publisher or create a new one."""
-        if topic.topic not in self._publishers:
-            qos = topic.qos if topic.qos is not None else self._qos
-            self._publishers[topic.topic] = self._node.create_publisher(
-                topic.ros_type, topic.topic, qos
-            )
-        return self._publishers[topic.topic]
+        with self._lock:
+            if topic.topic not in self._publishers:
+                node = self._node
+                if node is None:
+                    raise RuntimeError("Pubsub must be started before publishing")
+                qos = topic.qos if topic.qos is not None else self._qos
+                self._publishers[topic.topic] = node.create_publisher(
+                    topic.ros_type, topic.topic, qos
+                )
+            return self._publishers[topic.topic]
 
     def publish(self, topic: ROSTopic, message: Any) -> None:
         """Publish a message to a ROS topic.

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field
 import pickle
@@ -42,10 +42,10 @@ class TestCase(Generic[TopicT, MsgT]):
     pubsub_context: PubSubContext[TopicT, MsgT]
     msg_gen: MsgGen[TopicT, MsgT]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[PubSubContext[TopicT, MsgT] | MsgGen[TopicT, MsgT]]:
         return iter((self.pubsub_context, self.msg_gen))
 
-    def __len__(self):
+    def __len__(self) -> int:
         return 2
 
 

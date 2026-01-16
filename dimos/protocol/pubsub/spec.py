@@ -128,7 +128,7 @@ class PubSubEncoderMixin(Generic[TopicT, MsgT, EncodingT], ABC):
     ) -> Callable[[], None]:
         """Subscribe with automatic decoding."""
 
-        def wrapper_cb(encoded_data: bytes, topic: TopicT) -> None:
+        def wrapper_cb(encoded_data: EncodingT, topic: TopicT) -> None:
             decoded_message = self.decode(encoded_data, topic)
             callback(decoded_message, topic)
 

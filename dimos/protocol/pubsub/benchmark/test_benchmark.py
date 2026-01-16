@@ -14,13 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Generator
 import threading
 import time
+from typing import Any
 
 import pytest
 
 from dimos.protocol.pubsub.benchmark.testdata import testdata
-from dimos.protocol.pubsub.benchmark.type import BenchmarkResult, BenchmarkResults
+from dimos.protocol.pubsub.benchmark.type import (
+    BenchmarkResult,
+    BenchmarkResults,
+    MsgGen,
+    PubSubContext,
+    TestCase,
+)
 
 # Message sizes for throughput benchmarking (powers of 2 from 64B to 10MB)
 MSG_SIZES = [
@@ -57,16 +65,16 @@ def size_id(size: int) -> str:
     return f"{size}B"
 
 
-def pubsub_id(testcase) -> str:
+def pubsub_id(testcase: TestCase[Any, Any]) -> str:
     """Extract pubsub implementation name from context manager function name."""
-    name = testcase.pubsub_context.__name__
+    name: str = testcase.pubsub_context.__name__
     # Convert e.g. "lcm_pubsub_channel" -> "LCM", "memory_pubsub_channel" -> "Memory"
     prefix = name.replace("_pubsub_channel", "").replace("_", " ")
     return prefix.upper() if len(prefix) <= 3 else prefix.title().replace(" ", "")
 
 
 @pytest.fixture(scope="module")
-def benchmark_results():
+def benchmark_results() -> Generator[BenchmarkResults, None, None]:
     """Module-scoped fixture to collect benchmark results."""
     results = BenchmarkResults()
     yield results
@@ -79,7 +87,12 @@ def benchmark_results():
 @pytest.mark.tool
 @pytest.mark.parametrize("msg_size", MSG_SIZES, ids=[size_id(s) for s in MSG_SIZES])
 @pytest.mark.parametrize("pubsub_context, msggen", testdata, ids=[pubsub_id(t) for t in testdata])
-def test_throughput(pubsub_context, msggen, msg_size, benchmark_results):
+def test_throughput(
+    pubsub_context: PubSubContext[Any, Any],
+    msggen: MsgGen[Any, Any],
+    msg_size: int,
+    benchmark_results: BenchmarkResults,
+) -> None:
     """Measure throughput for publishing and receiving messages over a fixed duration."""
     with pubsub_context() as pubsub:
         topic, msg = msggen(msg_size)
@@ -88,7 +101,7 @@ def test_throughput(pubsub_context, msggen, msg_size, benchmark_results):
         lock = threading.Lock()
         all_received = threading.Event()
 
-        def callback(message, _topic):
+        def callback(message: Any, _topic: Any) -> None:
             nonlocal received_count
             with lock:
                 received_count += 1
@@ -136,7 +149,10 @@ def test_throughput(pubsub_context, msggen, msg_size, benchmark_results):
         latency = latency_end - publish_end
 
         # Record result (duration is publish time only for throughput calculation)
-        transport_name = pubsub_id(type("TC", (), {"pubsub_context": pubsub_context})())
+        # Extract transport name from context manager function name
+        ctx_name = pubsub_context.__name__
+        prefix = ctx_name.replace("_pubsub_channel", "").replace("_", " ")
+        transport_name = prefix.upper() if len(prefix) <= 3 else prefix.title().replace(" ", "")
         result = BenchmarkResult(
             transport=transport_name,
             duration=publish_end - start,

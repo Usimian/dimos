@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
 
 from dimos.msgs.sensor_msgs.Image import Image, ImageFormat
-from dimos.protocol.pubsub.benchmark.type import TestCase, TestData
+from dimos.protocol.pubsub.benchmark.type import TestCase
 from dimos.protocol.pubsub.lcmpubsub import LCM, LCMPubSubBase, Topic as LCMTopic
 from dimos.protocol.pubsub.memory import Memory
 from dimos.protocol.pubsub.shmpubsub import PickleSharedMemory
@@ -27,30 +28,30 @@ def make_data(size: int) -> bytes:
     return bytes(i % 256 for i in range(size))
 
 
-testdata: TestData = []
+testdata: list[TestCase[Any, Any]] = []
 
 
 @contextmanager
-def lcm_pubsub_channel():
+def lcm_pubsub_channel() -> Generator[LCM, None, None]:
     lcm_pubsub = LCM(autoconf=True)
     lcm_pubsub.start()
     yield lcm_pubsub
     lcm_pubsub.stop()
 
 
-def lcm_msggen(size):
+def lcm_msggen(size: int) -> tuple[LCMTopic, Image]:
     import numpy as np
 
     # Create image data as numpy array with shape (height, width, channels)
-    data = np.frombuffer(make_data(size), dtype=np.uint8).reshape(-1)
+    raw_data = np.frombuffer(make_data(size), dtype=np.uint8).reshape(-1)
     # Pad to make it divisible by 3 for RGB
-    padded_size = ((len(data) + 2) // 3) * 3
-    data = np.pad(data, (0, padded_size - len(data)))
-    pixels = len(data) // 3
+    padded_size = ((len(raw_data) + 2) // 3) * 3
+    padded_data = np.pad(raw_data, (0, padded_size - len(raw_data)))
+    pixels = len(padded_data) // 3
     # Find reasonable dimensions
     height = max(1, int(pixels**0.5))
     width = pixels // height
-    data = data[: height * width * 3].reshape(height, width, 3)
+    data = padded_data[: height * width * 3].reshape(height, width, 3)
     topic = LCMTopic(topic="benchmark/lcm", lcm_type=Image)
     msg = Image(data=data, format=ImageFormat.RGB)
     return (topic, msg)
@@ -65,7 +66,7 @@ testdata.append(
 
 
 @contextmanager
-def lcm_raw_pubsub_channel():
+def udp_raw_pubsub_channel() -> Generator[LCMPubSubBase, None, None]:
     """LCM with raw bytes - no encoding overhead."""
     lcm_pubsub = LCMPubSubBase(autoconf=True)
     lcm_pubsub.start()
@@ -73,7 +74,7 @@ def lcm_raw_pubsub_channel():
     lcm_pubsub.stop()
 
 
-def lcm_raw_msggen(size: int) -> tuple[LCMTopic, bytes]:
+def udp_raw_msggen(size: int) -> tuple[LCMTopic, bytes]:
     """Generate raw bytes for LCM transport benchmark."""
     topic = LCMTopic(topic="benchmark/lcm_raw")
     return (topic, make_data(size))
@@ -81,14 +82,14 @@ def lcm_raw_msggen(size: int) -> tuple[LCMTopic, bytes]:
 
 testdata.append(
     TestCase(
-        pubsub_context=lcm_raw_pubsub_channel,
-        msg_gen=lcm_raw_msggen,
+        pubsub_context=udp_raw_pubsub_channel,
+        msg_gen=udp_raw_msggen,
     )
 )
 
 
 @contextmanager
-def memory_pubsub_channel():
+def memory_pubsub_channel() -> Generator[Memory, None, None]:
     """Context manager for Memory PubSub implementation."""
     yield Memory()
 
@@ -96,13 +97,13 @@ def memory_pubsub_channel():
 def memory_msggen(size: int) -> tuple[str, Any]:
     import numpy as np
 
-    data = np.frombuffer(make_data(size), dtype=np.uint8).reshape(-1)
-    padded_size = ((len(data) + 2) // 3) * 3
-    data = np.pad(data, (0, padded_size - len(data)))
-    pixels = len(data) // 3
+    raw_data = np.frombuffer(make_data(size), dtype=np.uint8).reshape(-1)
+    padded_size = ((len(raw_data) + 2) // 3) * 3
+    padded_data = np.pad(raw_data, (0, padded_size - len(raw_data)))
+    pixels = len(padded_data) // 3
     height = max(1, int(pixels**0.5))
     width = pixels // height
-    data = data[: height * width * 3].reshape(height, width, 3)
+    data = padded_data[: height * width * 3].reshape(height, width, 3)
     return ("benchmark/memory", Image(data=data, format=ImageFormat.RGB))
 
 
@@ -115,7 +116,7 @@ def memory_msggen(size: int) -> tuple[str, Any]:
 
 
 @contextmanager
-def shm_pubsub_channel():
+def shm_pubsub_channel() -> Generator[PickleSharedMemory, None, None]:
     # 12MB capacity to handle benchmark sizes up to 10MB
     shm_pubsub = PickleSharedMemory(prefer="cpu", default_capacity=12 * 1024 * 1024)
     shm_pubsub.start()
@@ -127,13 +128,13 @@ def shm_msggen(size: int) -> tuple[str, Any]:
     """Generate message for SharedMemory pubsub benchmark."""
     import numpy as np
 
-    data = np.frombuffer(make_data(size), dtype=np.uint8).reshape(-1)
-    padded_size = ((len(data) + 2) // 3) * 3
-    data = np.pad(data, (0, padded_size - len(data)))
-    pixels = len(data) // 3
+    raw_data = np.frombuffer(make_data(size), dtype=np.uint8).reshape(-1)
+    padded_size = ((len(raw_data) + 2) // 3) * 3
+    padded_data = np.pad(raw_data, (0, padded_size - len(raw_data)))
+    pixels = len(padded_data) // 3
     height = max(1, int(pixels**0.5))
     width = pixels // height
-    data = data[: height * width * 3].reshape(height, width, 3)
+    data = padded_data[: height * width * 3].reshape(height, width, 3)
     return ("benchmark/shm", Image(data=data, format=ImageFormat.RGB))
 
 
@@ -149,7 +150,7 @@ try:
     from dimos.protocol.pubsub.redispubsub import Redis
 
     @contextmanager
-    def redis_pubsub_channel():
+    def redis_pubsub_channel() -> Generator[Redis, None, None]:
         redis_pubsub = Redis()
         redis_pubsub.start()
         yield redis_pubsub
@@ -181,7 +182,7 @@ if ROS_AVAILABLE:
     from sensor_msgs.msg import Image as ROSImage
 
     @contextmanager
-    def ros_best_effort_pubsub_channel():
+    def ros_best_effort_pubsub_channel() -> Generator[RawROS, None, None]:
         qos = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             history=QoSHistoryPolicy.KEEP_LAST,
@@ -194,7 +195,7 @@ if ROS_AVAILABLE:
         ros_pubsub.stop()
 
     @contextmanager
-    def ros_reliable_pubsub_channel():
+    def ros_reliable_pubsub_channel() -> Generator[RawROS, None, None]:
         qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
             history=QoSHistoryPolicy.KEEP_LAST,
