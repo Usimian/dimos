@@ -53,7 +53,7 @@ class PinocchioIK:
         if verbose:
             print(f"initial: {q.flatten().tolist()}")
 
-        for i in range(self.max_iter):
+        for _i in range(self.max_iter):
             pinocchio.forwardKinematics(self.model, self.data, q)
             iMd = self.data.oMi[self.ee_joint_id].actInv(target_pose)
 
@@ -63,9 +63,7 @@ class PinocchioIK:
                     print("Convergence achieved!")
                 return q, True
 
-            J = pinocchio.computeJointJacobian(
-                self.model, self.data, q, self.ee_joint_id
-            )
+            J = pinocchio.computeJointJacobian(self.model, self.data, q, self.ee_joint_id)
             J = -np.dot(pinocchio.Jlog6(iMd.inverse()), J)
             v = -J.T.dot(solve(J.dot(J.T) + self.damp * np.eye(6), err))
             q = pinocchio.integrate(self.model, q, v * self.dt)
@@ -88,7 +86,9 @@ class PinocchioIK:
 
 
 if __name__ == "__main__":
-    mjcf_path = "/home/ruthwik/Documents/dimos/dimos/simulation/manipulators/data/xarm6/xarm6_nohand.xml"
+    mjcf_path = (
+        "/home/ruthwik/Documents/dimos/dimos/simulation/manipulators/data/xarm6/xarm6_nohand.xml"
+    )
     ik_solver = PinocchioIK(mjcf_path, ee_joint_id=6)
 
     # First solve for initial position
