@@ -298,7 +298,6 @@ class ArucoTracker(Module[ArucoTrackerConfig]):
         avg_quat = avg_rotation.as_quat()  # [x, y, z, w]
         return avg_position, avg_quat
 
-
     def _send_joint_command(self, goal_pose: Pose) -> None:
         """Compute IK and send joint positions via OrchestratorClient trajectory."""
         if self._last_q is None:
@@ -332,7 +331,6 @@ class ArucoTracker(Module[ArucoTrackerConfig]):
             logger.debug(f"Sent trajectory to {[f'{p:.3f}' for p in joint_positions]}")
         else:
             logger.warning("Failed to send trajectory via OrchestratorClient")
-
 
     def _set_transforms(
         self, marker_id: int | str, tvec: np.ndarray, quat: np.ndarray, timestamp: float
@@ -373,7 +371,6 @@ class ArucoTracker(Module[ArucoTrackerConfig]):
             self._log_transform_to_rerun(ee_transform)
         return aruco_transform
 
-
     def _publish_annotated_image(self, display_image: np.ndarray, image_format: str) -> None:
         """Publish the annotated image to subscribers and Rerun."""
 
@@ -389,7 +386,6 @@ class ArucoTracker(Module[ArucoTrackerConfig]):
         )
         self.annotated_image.publish(annotated_msg)
         rr.log("aruco/annotated", rr.Image(publish_image))
-
 
     def _draw_markers(
         self,
