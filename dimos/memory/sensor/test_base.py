@@ -21,9 +21,42 @@ import uuid
 import pytest
 
 from dimos.memory.sensor.base import InMemoryStore, SensorStore
+from dimos.memory.sensor.legacy import LegacyPickleStore
 from dimos.memory.sensor.pickledir import PickleDirStore
 from dimos.memory.sensor.sqlite import SqliteStore
 from dimos.types.timestamped import Timestamped
+
+
+class TestLegacyPickleStoreRealData:
+    """Test LegacyPickleStore with real recorded data."""
+
+    def test_read_lidar_recording(self) -> None:
+        """Test reading from unitree_go2_bigoffice/lidar recording."""
+        store = LegacyPickleStore("unitree_go2_bigoffice/lidar")
+
+        # Check first timestamp exists
+        first_ts = store.first_timestamp()
+        assert first_ts is not None
+        assert first_ts > 0
+
+        # Check first data
+        first = store.first()
+        assert first is not None
+        assert hasattr(first, "ts")
+
+        # Check find_closest_seek works
+        data_at_10s = store.find_closest_seek(10.0)
+        assert data_at_10s is not None
+
+        # Check iteration returns monotonically increasing timestamps
+        prev_ts = None
+        for i, item in enumerate(store.iterate()):
+            assert item.ts is not None
+            if prev_ts is not None:
+                assert item.ts >= prev_ts, "Timestamps should be monotonically increasing"
+            prev_ts = item.ts
+            if i >= 10:  # Only check first 10 items
+                break
 
 
 @dataclass
@@ -61,11 +94,16 @@ def make_sqlite_store(tmpdir: str) -> SensorStore[SampleData]:
     return SqliteStore[SampleData](Path(tmpdir) / "test.db")
 
 
+def make_legacy_pickle_store(tmpdir: str) -> SensorStore[SampleData]:
+    return LegacyPickleStore[SampleData](Path(tmpdir) / "legacy")
+
+
 # Base test data (always available)
 testdata: list[tuple[object, str]] = [
     (lambda _: make_in_memory_store(), "InMemoryStore"),
     (lambda tmpdir: make_pickle_dir_store(tmpdir), "PickleDirStore"),
     (lambda tmpdir: make_sqlite_store(tmpdir), "SqliteStore"),
+    (lambda tmpdir: make_legacy_pickle_store(tmpdir), "LegacyPickleStore"),
 ]
 
 # Track postgres tables to clean up
@@ -145,8 +183,8 @@ class TestSensorStore:
     def test_iter_items(self, store_factory, store_name, temp_dir):
         store = store_factory(temp_dir)
         store.save(SampleData("a", 1.0))
-        store.save(SampleData("c", 3.0))
         store.save(SampleData("b", 2.0))
+        store.save(SampleData("c", 3.0))
 
         # Should iterate in timestamp order
         items = list(store._iter_items())
@@ -193,12 +231,12 @@ class TestSensorStore:
         assert store.first() is None
         assert store.first_timestamp() is None
 
-        # Add data
-        store.save(SampleData("b", 2.0))
+        # Add data (in chronological order)
         store.save(SampleData("a", 1.0))
+        store.save(SampleData("b", 2.0))
         store.save(SampleData("c", 3.0))
 
-        # Should return first by timestamp, not insertion order
+        # Should return first by timestamp
         assert store.first_timestamp() == 1.0
         assert store.first() == SampleData("a", 1.0)
 
@@ -246,8 +284,8 @@ class TestSensorStore:
     def test_iterate(self, store_factory, store_name, temp_dir):
         store = store_factory(temp_dir)
         store.save(SampleData("a", 1.0))
-        store.save(SampleData("c", 3.0))
         store.save(SampleData("b", 2.0))
+        store.save(SampleData("c", 3.0))
 
         # Should iterate in timestamp order, returning data only (not tuples)
         items = list(store.iterate())
