@@ -13,12 +13,15 @@
 # limitations under the License.
 
 import time
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from dimos import core
 from dimos.core import DimosCluster, Module
 from dimos.core.global_config import GlobalConfig
 from dimos.core.resource import Resource
+
+if TYPE_CHECKING:
+    from dimos.core.rpc_client import RPCClient
 
 T = TypeVar("T", bound="Module")
 
@@ -51,7 +54,7 @@ class ModuleCoordinator(Resource):
         if not self._client:
             raise ValueError("Not started")
 
-        module = self._client.deploy(module_class, *args, **kwargs)  # type: ignore[attr-defined]
+        module: RPCClient = self._client.deploy(module_class, *args, **kwargs)  # type: ignore[attr-defined]
         self._deployed_modules[module_class] = module
         return module  # type: ignore[no-any-return]
 

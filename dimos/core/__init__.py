@@ -90,10 +90,10 @@ DimosCluster = Client
 
 def patchdask(dask_client: Client, local_cluster: LocalCluster) -> DimosCluster:
     def deploy(  # type: ignore[no-untyped-def]
-        actor_class,
+        actor_class: Module,
         *args,
         **kwargs,
-    ):
+    ) -> RPCClient:
         logger.info("Deploying module.", module=actor_class.__name__)
         actor = dask_client.submit(  # type: ignore[no-untyped-call]
             actor_class,
