@@ -30,7 +30,8 @@ from dimos.core.global_config import GlobalConfig
 from dimos.core.module import Module
 from dimos.core.module_coordinator import ModuleCoordinator
 from dimos.core.stream import In, Out
-from dimos.core.transport import LCMTransport, pLCMTransport
+from dimos.core.transport import LCMTransport, pLCMTransport, PubSubTransport
+from dimos.core.rpc_client import RPCClient
 from dimos.spec.utils import get_protocol_method_signatures, is_spec
 from dimos.utils.generic import short_id
 from dimos.utils.logging_config import setup_logger
@@ -104,8 +105,7 @@ class _BlueprintAtom:
 @dataclass(frozen=True)
 class Blueprint:
     blueprints: tuple[_BlueprintAtom, ...]
-    # TODO: Replace Any
-    transport_map: Mapping[tuple[str, type], Any] = field(
+    transport_map: Mapping[tuple[str, type], PubSubTransport] = field(
         default_factory=lambda: MappingProxyType({})
     )
     global_config_overrides: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
@@ -178,7 +178,7 @@ class Blueprint:
                 f"{modules_str}. Please use a concrete class name instead."
             )
 
-    def _get_transport_for(self, name: str, type: type) -> Any:
+    def _get_transport_for(self, name: str, type: type) -> PubSubTransport:
         transport = self.transport_map.get((name, type), None)
         if transport:
             return transport
@@ -278,7 +278,7 @@ class Blueprint:
         for remapped_name, type in connections.keys():
             transport = self._get_transport_for(remapped_name, type)
             for module, original_name in connections[(remapped_name, type)]:
-                instance = module_coordinator.get_instance(module)
+                instance: RPCClient = module_coordinator.get_instance(module)
                 instance.set_transport(original_name, transport)  # type: ignore[union-attr]
                 logger.info(
                     "Transport",
@@ -305,7 +305,8 @@ class Blueprint:
 
         for blueprint in self.blueprints:
             for method_name in blueprint.module.rpcs.keys():  # type: ignore[attr-defined]
-                method = getattr(module_coordinator.get_instance(blueprint.module), method_name)
+                module_proxy: RPCClient = module_coordinator.get_instance(blueprint.module)
+                method_for_rpc_client = getattr(module_proxy, method_name)
                 # Register under concrete class name (backward compatibility)
                 rpc_methods[f"{blueprint.module.__name__}_{method_name}"] = method
                 rpc_methods_dot[f"{blueprint.module.__name__}.{method_name}"] = method
