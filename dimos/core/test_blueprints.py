@@ -110,7 +110,7 @@ def test_get_connection_set() -> None:
             ModuleConnection(name="pet_cat", type=Petting, direction="in"),
             ModuleConnection(name="scratches", type=Scratch, direction="out"),
         ),
-        args=("arg1"),
+        args=("arg1",),
         kwargs={"k": "v"},
     )
 
