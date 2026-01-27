@@ -59,11 +59,11 @@ class _BlueprintAtom:
     module: type[Module]
     connections: tuple[StreamRef, ...]
     module_refs: tuple[ModuleRef, ...]
-    args: tuple[Any]
+    args: tuple[Any, ...]
     kwargs: dict[str, Any]
 
-    @staticmethod
-    def create(module: type[Module], args: tuple[Any], kwargs: dict[str, Any]) -> Self:
+    @classmethod
+    def create(cls, module: type[Module], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Self:
         connections: list[StreamRef] = []
         module_refs: list[ModuleRef] = []
 
@@ -95,7 +95,7 @@ class _BlueprintAtom:
                 other_module = getattr(module, name)
                 module_refs.append(ModuleRef(name=name, rpc_method_names=other_module.rpc_calls))
 
-        return _BlueprintAtom(
+        return cls(
             module=module,
             connections=tuple(connections),
             module_refs=tuple(module_refs),
@@ -116,10 +116,10 @@ class Blueprint:
     )
     requirement_checks: tuple[Callable[[], str | None], ...] = field(default_factory=tuple)
 
-    @staticmethod
-    def create(module: type[Module], *args: tuple[Any], **kwargs: dict[str, Any]) -> Self:
+    @classmethod
+    def create(cls, module: type[Module], *args: Any, **kwargs: Any) -> Self:
         blueprint = _BlueprintAtom.create(module, args, kwargs)
-        return Blueprint(blueprints=(blueprint,))
+        return cls(blueprints=(blueprint,))
 
     def transports(self, transports: dict[tuple[str, type], Any]) -> "Blueprint":
         return Blueprint(
