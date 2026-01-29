@@ -337,7 +337,7 @@ class LCMSharedMemoryPubSubBase(PubSub[Topic, Any]):
 
 
 class LCMSharedMemory(  # type: ignore[misc]
-    LCMEncoderMixin[Topic],
+    LCMEncoderMixin,
     LCMSharedMemoryPubSubBase,
 ):
     """SharedMemory pubsub that uses LCM binary encoding (no pickle overhead)."""

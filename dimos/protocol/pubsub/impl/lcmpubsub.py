@@ -23,7 +23,7 @@ from dimos.protocol.pubsub.encoders import (
     LCMEncoderMixin,
     PickleEncoderMixin,
 )
-from dimos.protocol.pubsub.spec import AllPubSub, PubSub
+from dimos.protocol.pubsub.spec import AllPubSub
 from dimos.protocol.service.lcmservice import LCMConfig, LCMService, autoconf
 from dimos.utils.logging_config import setup_logger
 
@@ -169,6 +169,8 @@ class LCMPubSubBase(LCMService, AllPubSub[Topic, Any]):
         if isinstance(topic, Topic) and topic.is_pattern:
 
             def handler(channel: str, msg: bytes) -> None:
+                if channel == "LCM_SELF_TEST":
+                    return
                 callback(msg, Topic.from_channel_str(channel, topic.lcm_type))
 
             pattern_str = str(topic)

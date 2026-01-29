@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 import pickle
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Generic, Protocol, TypeVar, cast
 
 from dimos.msgs import DimosMsg
 from dimos.msgs.sensor_msgs import Image
@@ -29,6 +29,12 @@ if TYPE_CHECKING:
 TopicT = TypeVar("TopicT")
 MsgT = TypeVar("MsgT")
 EncodingT = TypeVar("EncodingT")
+
+
+class DecodingError(Exception):
+    """Raised by decode() to skip a message without calling the callback."""
+
+    pass
 
 
 class PubSubEncoderMixin(Generic[TopicT, MsgT, EncodingT], ABC):
@@ -70,7 +76,10 @@ class PubSubEncoderMixin(Generic[TopicT, MsgT, EncodingT], ABC):
         """Subscribe with automatic decoding."""
 
         def wrapper_cb(encoded_data: EncodingT, topic: TopicT) -> None:
-            decoded_message = self.decode(encoded_data, topic)
+            try:
+                decoded_message = self.decode(encoded_data, topic)
+            except DecodingError:
+                return
             callback(decoded_message, topic)
 
         return cast("Callable[[], None]", super().subscribe(topic, wrapper_cb))  # type: ignore[misc]
@@ -86,27 +95,34 @@ class PickleEncoderMixin(PubSubEncoderMixin[TopicT, MsgT, bytes]):
         return cast("MsgT", pickle.loads(msg))
 
 
-class LCMEncoderMixin(PubSubEncoderMixin[TopicT, DimosMsg, bytes]):
+class LCMTopicProto(Protocol):
+    """Protocol for topics usable with LCM encoders."""
+
+    topic: str  # At decode time, always concrete string
+    lcm_type: type[DimosMsg] | None
+
+
+class LCMEncoderMixin(PubSubEncoderMixin[LCMTopicProto, DimosMsg, bytes]):
     """Encoder mixin for DimosMsg using LCM binary encoding."""
 
-    def encode(self, msg: DimosMsg, _: TopicT) -> bytes:
+    def encode(self, msg: DimosMsg, _: LCMTopicProto) -> bytes:
         return msg.lcm_encode()
 
-    def decode(self, msg: bytes, topic: TopicT) -> DimosMsg:
-        lcm_type = getattr(topic, "lcm_type", None)
-        if lcm_type is None:
-            return None
-        return cast("DimosMsg", lcm_type.lcm_decode(msg))
+    def decode(self, msg: bytes, topic: LCMTopicProto) -> DimosMsg:
+        if topic.lcm_type is None:
+            raise DecodingError(f"Cannot decode: topic {topic.topic!r} has no lcm_type")
+        return topic.lcm_type.lcm_decode(msg)
 
 
-class JpegEncoderMixin(PubSubEncoderMixin[TopicT, Image, bytes]):
+class JpegEncoderMixin(PubSubEncoderMixin[LCMTopicProto, Image, bytes]):
     """Encoder mixin for DimosMsg using JPEG encoding (for images)."""
 
-    def encode(self, msg: Image, _: TopicT) -> bytes:
+    def encode(self, msg: Image, _: LCMTopicProto) -> bytes:
         return msg.lcm_jpeg_encode()
 
-    def decode(self, msg: bytes, topic: TopicT) -> Image:
-        lcm_type = getattr(topic, "lcm_type", None)
-        if lcm_type is None:
-            raise ValueError("Cannot decode: topic has no lcm_type")
-        return cast("Image", lcm_type.lcm_jpeg_decode(msg))
+    def decode(self, msg: bytes, topic: LCMTopicProto) -> Image:
+        if topic.topic == "LCM_SELF_TEST":
+            raise DecodingError("Ignoring LCM_SELF_TEST topic")
+        if topic.lcm_type is None:
+            raise DecodingError(f"Cannot decode: topic {topic.topic!r} has no lcm_type")
+        return cast("type[Image]", topic.lcm_type).lcm_jpeg_decode(msg)
