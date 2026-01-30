@@ -114,6 +114,10 @@ class RerunBridgeModule(Module):
             if hasattr(pubsub, "stop"):
                 self._disposables.add(Disposable(pubsub.stop))  # type: ignore[union-attr]
 
+    @rpc
+    def stop(self) -> None:
+        super().stop()
+
 
 rerun_bridge = RerunBridgeModule.blueprint
 
