@@ -296,12 +296,8 @@ For network communication, DDS uses the Data Distribution Service (DDS) protocol
 ```python session=dds_demo ansi=false
 from dataclasses import dataclass
 from cyclonedds.idl import IdlStruct
-from dimos.protocol.pubsub.ddspubsub import (
-    DDS,
-    HIGH_THROUGHPUT_QOS,
-    RELIABLE_QOS,
-    Topic as DDSTopic,
-)
+
+from dimos.protocol.pubsub.impl.ddspubsub import DDS, Topic
 
 @dataclass
 class SensorReading(IdlStruct):
