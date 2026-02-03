@@ -14,17 +14,14 @@
 
 from __future__ import annotations
 
-from typing import Any, TypeVar
-
-import dimos.core.colors as colors
-
-T = TypeVar("T")
-
+import threading
 from typing import (
     TYPE_CHECKING,
+    Any,
     TypeVar,
 )
 
+import dimos.core.colors as colors
 from dimos.core.stream import In, Out, Stream, Transport
 from dimos.msgs.protocol import DimosMsg
 from dimos.protocol.pubsub.impl.jpeg_shm import JpegSharedMemory
