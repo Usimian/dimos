@@ -1504,7 +1504,6 @@ dependencies = [
     { name = "annotation-protocol" },
     { name = "asyncio" },
     { name = "colorlog" },
-    { name = "cyclonedds" },
     { name = "dask", extra = ["complete"] },
     { name = "dimos-lcm" },
     { name = "llvmlite" },
@@ -1592,6 +1591,9 @@ cuda = [
     { name = "nvidia-nvimgcodec-cu12", extra = ["all"] },
     { name = "onnxruntime-gpu" },
     { name = "xformers" },
+]
+dds = [
+    { name = "cyclonedds" },
 ]
 dev = [
     { name = "coverage" },
@@ -1750,7 +1752,7 @@ requires-dist = [
     { name = "ctransformers", marker = "extra == 'cpu'", specifier = "==0.2.27" },
     { name = "ctransformers", extras = ["cuda"], marker = "extra == 'cuda'", specifier = "==0.2.27" },
     { name = "cupy-cuda12x", marker = "extra == 'cuda'", specifier = "==13.6.0" },
-    { name = "cyclonedds", specifier = ">=0.10.5" },
+    { name = "cyclonedds", marker = "extra == 'dds'", specifier = ">=0.10.5" },
     { name = "dask", extras = ["complete"], specifier = "==2025.5.1" },
     { name = "dimos", extras = ["agents", "web", "perception", "visualization", "sim"], marker = "extra == 'base'" },
     { name = "dimos", extras = ["base"], marker = "extra == 'unitree'" },
@@ -1881,7 +1883,7 @@ requires-dist = [
     { name = "xformers", marker = "extra == 'cuda'", specifier = ">=0.0.20" },
     { name = "yapf", marker = "extra == 'misc'", specifier = "==0.40.2" },
 ]
-provides-extras = ["misc", "visualization", "agents", "web", "perception", "unitree", "manipulation", "cpu", "cuda", "dev", "sim", "drone", "base"]
+provides-extras = ["misc", "visualization", "agents", "web", "perception", "unitree", "manipulation", "cpu", "cuda", "dev", "sim", "drone", "dds", "base"]
 
 [[package]]
 name = "dimos-lcm"

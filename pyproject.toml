@@ -31,7 +31,6 @@ readme = "README.md"
 dependencies = [
     # Transport Protocols
     "dimos-lcm",
-    "cyclonedds>=0.10.5",
     "PyTurboJPEG==1.8.2",
 
     # Core
@@ -280,6 +279,10 @@ sim = [
 
 drone = [
     "pymavlink"
+]
+
+dds = [
+    "cyclonedds>=0.10.5",
 ]
 
 base = [
