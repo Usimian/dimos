@@ -281,11 +281,13 @@ class DDSTransport(PubSubTransport[T]):
                 self.start()
             self.dds.publish(self.topic, msg)
 
-    def subscribe(self, callback: Callable[[T], None], selfstream: In[T] = None) -> None:  # type: ignore[assignment, override]
+    def subscribe(
+        self, callback: Callable[[T], None], selfstream: In[T] | None = None
+    ) -> Callable[[], None]:
         with self._start_lock:
             if not self._started:
                 self.start()
-            return self.dds.subscribe(self.topic, lambda msg, topic: callback(msg))  # type: ignore[return-value]
+            return self.dds.subscribe(self.topic, lambda msg, topic: callback(msg))
 
 
 class ZenohTransport(PubSubTransport[T]): ...
