@@ -282,7 +282,7 @@ class DDSTransport(PubSubTransport[T]):
             self.dds.publish(self.topic, msg)
 
     def subscribe(
-        self, callback: Callable[[T], None], selfstream: In[T] | None = None
+        self, callback: Callable[[T], None], selfstream: Stream[T] | None = None
     ) -> Callable[[], None]:
         with self._start_lock:
             if not self._started:
