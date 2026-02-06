@@ -19,22 +19,11 @@ from dataclasses import dataclass
 import threading
 from typing import TYPE_CHECKING, Any, TypeAlias
 
-try:
-    from cyclonedds.core import Listener
-    from cyclonedds.pub import DataWriter as DDSDataWriter
-    from cyclonedds.qos import Policy, Qos
-    from cyclonedds.sub import DataReader as DDSDataReader
-    from cyclonedds.topic import Topic as DDSTopic
-
-    DDS_AVAILABLE = True
-except ImportError:
-    DDS_AVAILABLE = False
-    Listener = None  # type: ignore[assignment, misc]
-    DDSDataWriter = None  # type: ignore[assignment, misc]
-    Policy = None  # type: ignore[assignment, misc]
-    Qos = None  # type: ignore[assignment, misc]
-    DDSDataReader = None  # type: ignore[assignment, misc]
-    DDSTopic = None  # type: ignore[assignment, misc]
+from cyclonedds.core import Listener
+from cyclonedds.pub import DataWriter as DDSDataWriter
+from cyclonedds.qos import Policy, Qos
+from cyclonedds.sub import DataReader as DDSDataReader
+from cyclonedds.topic import Topic as DDSTopic
 
 from dimos.protocol.pubsub.spec import PubSub
 from dimos.protocol.service.ddsservice import DDSService

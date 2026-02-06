@@ -21,7 +21,13 @@ import numpy as np
 
 from dimos.msgs.sensor_msgs.Image import Image, ImageFormat
 from dimos.protocol.pubsub.benchmark.type import Case
-from dimos.protocol.pubsub.impl.ddspubsub import DDS_AVAILABLE
+
+try:
+    import cyclonedds as _cyclonedds  # noqa: F401
+
+    DDS_AVAILABLE = True
+except ImportError:
+    DDS_AVAILABLE = False
 from dimos.protocol.pubsub.impl.lcmpubsub import LCM, LCMPubSubBase, Topic as LCMTopic
 from dimos.protocol.pubsub.impl.memory import Memory
 from dimos.protocol.pubsub.impl.shmpubsub import (
