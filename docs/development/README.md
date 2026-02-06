@@ -99,7 +99,7 @@ CYCLONEDDS_HOME=/opt/cyclonedds uv pip install -e '.[dds]'
 To install all extras including DDS:
 
 ```bash
-CYCLONEDDS_HOME=/opt/cyclonedds uv sync --all-extras
+CYCLONEDDS_HOME=/opt/cyclonedds uv sync --extra dds
 ```
 
 <!-- Enable this option once the dockerfile (ghcr.io/dimensionalos/ros-python:dev) is public and debugged! -->
