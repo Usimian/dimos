@@ -25,7 +25,7 @@ os.environ["SDL_VIDEODRIVER"] = "x11"
 
 import time
 
-from dimos.core import Module, Out, rpc  # type: ignore[attr-defined]
+from dimos.core import Module, Out, rpc
 from dimos.msgs.geometry_msgs import Twist, TwistStamped, Vector3
 from dimos.msgs.std_msgs import Int32
 

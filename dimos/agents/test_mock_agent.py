@@ -101,7 +101,7 @@ def test_image_tool_call() -> None:
         system_prompt="You are a helpful robot assistant with camera capabilities.",
     )
 
-    test_skill_module = dimos.deploy(SkillContainerTest)  # type: ignore[attr-defined]
+    test_skill_module = dimos.deploy(SkillContainerTest)
 
     agent.register_skills(test_skill_module)
     agent.start()
@@ -128,10 +128,9 @@ def test_image_tool_call() -> None:
     assert len(human_messages_with_images) >= 0  # May have image messages
     agent.stop()
     test_skill_module.stop()
-    dimos.close_all()  # type: ignore[attr-defined]
+    dimos.close_all()
 
 
-@pytest.mark.tofix  # runs forever but shouldnt
 @pytest.mark.tool
 def test_tool_call_implicit_detections() -> None:
     """Test agent with image tool call execution."""
@@ -159,7 +158,7 @@ def test_tool_call_implicit_detections() -> None:
         system_prompt="You are a helpful robot assistant with camera capabilities.",
     )
 
-    robot_connection = dimos.deploy(GO2Connection, connection_type="fake")  # type: ignore[attr-defined]
+    robot_connection = dimos.deploy(GO2Connection, connection_type="fake")
     robot_connection.lidar.transport = LCMTransport("/lidar", PointCloud2)
     robot_connection.odom.transport = LCMTransport("/odom", PoseStamped)
     robot_connection.video.transport = LCMTransport("/image", Image)
@@ -167,7 +166,7 @@ def test_tool_call_implicit_detections() -> None:
     robot_connection.camera_info.transport = LCMTransport("/camera_info", CameraInfo)
     robot_connection.start()
 
-    test_skill_module = dimos.deploy(SkillContainerTest)  # type: ignore[attr-defined]
+    test_skill_module = dimos.deploy(SkillContainerTest)
 
     agent.register_skills(test_skill_module)
     agent.start()
@@ -201,4 +200,4 @@ def test_tool_call_implicit_detections() -> None:
     agent.stop()
     test_skill_module.stop()
     robot_connection.stop()
-    dimos.stop()  # type: ignore[attr-defined]
+    dimos.stop()
