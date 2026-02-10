@@ -14,8 +14,7 @@ ENV LANG=en_US.UTF-8
 ENV ROS_DISTRO=humble
 
 # Install basic requirements
-RUN apt-get update
-RUN apt-get install -y \
+RUN apt-get update && apt-get install -y \
     curl \
     gnupg2 \
     lsb-release \

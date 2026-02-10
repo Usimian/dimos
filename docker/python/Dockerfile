@@ -2,8 +2,7 @@ ARG FROM_IMAGE=ghcr.io/dimensionalos/ros:dev
 FROM ${FROM_IMAGE}
 
 # Install basic requirements
-RUN apt-get update
-RUN apt-get install -y \
+RUN apt-get update && apt-get install -y \
     python-is-python3 \
     curl \
     gnupg2 \
