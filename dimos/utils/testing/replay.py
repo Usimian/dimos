@@ -11,10 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Shim for TimedSensorReplay/TimedSensorStorage.
 
-For the original implementation, see replay_legacy.py.
-"""
+"""Shim for TimedSensorReplay/TimedSensorStorage."""
 
 from dimos.memory.timeseries.legacy import LegacyPickleStore
 
