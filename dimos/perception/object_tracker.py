@@ -558,9 +558,9 @@ class ObjectTracking(Module[ObjectTrackingConfig]):
                 viz_msg = Image.from_numpy(viz_image)
                 self.tracked_overlay.publish(viz_msg)
 
-    def _draw_reid_matches(self, image: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    def _draw_reid_matches(self, image: NDArray[np.uint8]) -> NDArray[np.uint8]:  # type: ignore[type-arg]
         """Draw REID feature matches on the image."""
-        viz_image = image.copy()
+        viz_image: NDArray[np.uint8] = image.copy()  # type: ignore[type-arg]
 
         x1, y1, _x2, _y2 = self.last_roi_bbox  # type: ignore[misc]
 
