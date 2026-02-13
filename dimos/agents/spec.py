@@ -69,7 +69,7 @@ _providers = [
     "UPSTAGE",
     "XAI",
 ]
-Provider = Enum("Provider", _providers, type=str)  # type: ignore[misc]
+Provider = Enum("Provider", {provider: provider.lower() for provider in _providers}, type=str)  # type: ignore[misc]
 
 
 class Model(str, Enum):

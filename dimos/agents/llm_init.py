@@ -45,7 +45,7 @@ def build_llm(config: AgentConfig) -> BaseChatModel:
     return cast(
         "BaseChatModel",
         init_chat_model(  # type: ignore[call-overload]
-            model_provider=config.provider,
+            model_provider=config.provider.value,
             model=config.model,
         ),
     )
