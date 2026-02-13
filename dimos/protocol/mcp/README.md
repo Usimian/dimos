@@ -9,20 +9,22 @@ uv sync --extra base --extra unitree
 ```
 
 Add to Claude Code (one command):
-```bash
-claude mcp add --transport stdio dimos --scope project -- python -m dimos.protocol.mcp
-```
 
+```bash
+claude mcp add --transport stdio dimos --scope project -- uv run python -m dimos.protocol.mcp
+```
 
 ## Usage
 
 **Terminal 1** - Start DimOS:
+
 ```bash
 uv run dimos run unitree-go2-agentic-mcp
 ```
 
 **Claude Code** - Use robot skills:
-```
+
+```text
 > move forward 1 meter
 > go to the kitchen
 > tag this location as "desk"
