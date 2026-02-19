@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pico VR Teleop - Data Explorer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #fff;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        h1 {
+            font-size: 42px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #28283b;
+        }
+
+        #status {
+            font-size: 28px;
+            font-weight: 500;
+            color: #0077b6;
+            padding: 16px 32px;
+            background-color: #fff;
+            border: 2px solid #0077b6;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            min-width: 300px;
+            text-align: center;
+        }
+
+        button {
+            padding: 20px 48px;
+            font-size: 24px;
+            font-weight: 600;
+            color: white;
+            background-color: #0077b6;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #005f8a;
+        }
+
+        button:disabled {
+            background-color: #adb5bd;
+            cursor: not-allowed;
+        }
+
+        button.disconnect {
+            background-color: #6c757d;
+            margin-top: 16px;
+        }
+
+        button.disconnect:hover {
+            background-color: #545b62;
+        }
+
+        #canvas {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Debug panel overlay */
+        #debug {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            bottom: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            padding: 12px;
+            border-radius: 8px;
+            overflow-y: auto;
+            z-index: 200;
+            white-space: pre;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <h1>DimOS Pico Teleop</h1>
+        <div id="status">Ready to connect</div>
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" class="disconnect hidden" onclick="disconnect()">Disconnect</button>
+    </div>
+    <canvas id="canvas"></canvas>
+    <div id="debug" class="hidden"></div>
+
+    <script type="module">
+        // Global error handler
+        window.onerror = (msg, url, line, col, error) => {
+            console.error(`[ERROR] ${msg} at ${url}:${line}:${col}`, error);
+            document.getElementById('status').textContent = `Error: ${msg}`;
+        };
+
+        import { encodePacket, geometry_msgs, std_msgs, sensor_msgs } from "https://esm.sh/jsr/@dimos/msgs@0.1.4";
+
+        // State
+        let ws = null;
+        let xrSession = null;
+        let xrRefSpace = null;
+        let gl = null;
+        let lastSendTime = 0;
+        let frameCount = 0;
+        const sendInterval = 1000 / 80; // ~80Hz target
+
+        // Raw data snapshot for debug display
+        const rawData = {
+            left: { pose: null, gamepad: null, inputSource: null },
+            right: { pose: null, gamepad: null, inputSource: null },
+            other: [],  // Non-left/right input sources (body trackers, leg controllers, etc.)
+            frameRate: 0,
+            inputSourceCount: 0,
+            sessionMode: '',
+        };
+        let lastFpsTime = 0;
+        let fpsFrameCount = 0;
+
+        // UI elements
+        const statusEl = document.getElementById('status');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const canvas = document.getElementById('canvas');
+        const debugEl = document.getElementById('debug');
+
+        function setStatus(msg) {
+            statusEl.textContent = msg;
+        }
+
+        // ─── WebSocket ───────────────────────────────────────────
+        function setupWebSocket() {
+            return new Promise((resolve, reject) => {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}`;
+
+                setStatus('Connecting to server...');
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    setStatus('Server connected');
+                    resolve();
+                };
+                ws.onerror = (error) => {
+                    setStatus('WebSocket error');
+                    console.error('WebSocket error:', error);
+                    reject(error);
+                };
+                ws.onclose = () => {
+                    setStatus('WebSocket closed');
+                };
+            });
+        }
+
+        // ─── WebGL ───────────────────────────────────────────────
+        function initGL() {
+            gl = canvas.getContext('webgl', {
+                xrCompatible: true,
+                alpha: true
+            });
+            if (!gl) {
+                throw new Error('WebGL not supported');
+            }
+            gl.clearColor(0, 0, 0, 0);
+        }
+
+        // ─── Debug Display ───────────────────────────────────────
+        function fmt(v, d = 4) {
+            if (v === null || v === undefined) return 'null';
+            return Number(v).toFixed(d);
+        }
+
+        function formatPose(pose) {
+            if (!pose) return '  (no pose data)';
+            const p = pose.transform.position;
+            const r = pose.transform.orientation;
+            return `  pos: x=${fmt(p.x)} y=${fmt(p.y)} z=${fmt(p.z)}\n  rot: x=${fmt(r.x)} y=${fmt(r.y)} z=${fmt(r.z)} w=${fmt(r.w)}`;
+        }
+
+        function formatGamepad(gp) {
+            if (!gp) return '  (no gamepad)';
+            let out = `  id: "${gp.id}"\n  mapping: "${gp.mapping}"\n  connected: ${gp.connected}`;
+            out += `\n  hapticActuators: ${gp.hapticActuators?.length ?? 0}`;
+            out += `\n  axes [${gp.axes.length}]:`;
+            for (let i = 0; i < gp.axes.length; i++) {
+                out += `\n    [${i}] = ${fmt(gp.axes[i])}`;
+            }
+            out += `\n  buttons [${gp.buttons.length}]:`;
+            for (let i = 0; i < gp.buttons.length; i++) {
+                const b = gp.buttons[i];
+                out += `\n    [${i}] pressed=${b.pressed ? 'T' : 'F'}  touched=${b.touched ? 'T' : 'F'}  value=${fmt(b.value, 3)}`;
+            }
+            return out;
+        }
+
+        function formatInputSource(src) {
+            if (!src) return '  (none)';
+            return `  handedness: ${src.handedness}\n  targetRayMode: ${src.targetRayMode}\n  profiles: [${src.profiles?.join(', ') ?? ''}]\n  gripSpace: ${src.gripSpace ? 'yes' : 'no'}\n  hand: ${src.hand ? 'yes (hand tracking)' : 'no'}`;
+        }
+
+        function updateDebugPanel() {
+            const d = rawData;
+            debugEl.textContent =
+`═══ PICO TELEOP RAW DATA ═══
+Session: ${d.sessionMode}  FPS: ${d.frameRate}  Inputs: ${d.inputSourceCount}
+WS: ${ws?.readyState === WebSocket.OPEN ? 'CONNECTED' : 'DISCONNECTED'}
+
+─── LEFT CONTROLLER ────────────────────
+InputSource:
+${formatInputSource(d.left.inputSource)}
+Pose (gripSpace):
+${formatPose(d.left.pose)}
+Gamepad:
+${formatGamepad(d.left.gamepad)}
+
+─── RIGHT CONTROLLER ───────────────────
+InputSource:
+${formatInputSource(d.right.inputSource)}
+Pose (gripSpace):
+${formatPose(d.right.pose)}
+Gamepad:
+${formatGamepad(d.right.gamepad)}
+
+─── OTHER INPUT SOURCES (${d.other.length}) ─────────
+${d.other.length === 0 ? '  (none detected)' : d.other.map((s, i) => `[${i}] handedness="${s.handedness}" mode=${s.targetRayMode} profiles=[${s.profiles}]\n  Pose: ${s.pose ? `pos=(${fmt(s.pose.transform.position.x)}, ${fmt(s.pose.transform.position.y)}, ${fmt(s.pose.transform.position.z)})` : '(none)'}\n  Gamepad: ${s.gamepad ? `axes=${s.gamepad.axes.length} buttons=${s.gamepad.buttons.length}` : '(none)'}`).join('\n')}
+`;
+        }
+
+        // ─── Tracking + Send ─────────────────────────────────────
+        function processTracking(frame) {
+            const now = performance.now();
+
+            // FPS counter
+            fpsFrameCount++;
+            if (now - lastFpsTime > 1000) {
+                rawData.frameRate = fpsFrameCount;
+                fpsFrameCount = 0;
+                lastFpsTime = now;
+            }
+
+            rawData.inputSourceCount = frame.session.inputSources.length;
+
+            // Rate limit sending (but always capture for debug)
+            const shouldSend = (now - lastSendTime >= sendInterval);
+            if (shouldSend) lastSendTime = now;
+
+            rawData.other = [];
+            let otherIdx = 0;
+
+            for (const inputSource of frame.session.inputSources) {
+                const trackingSpace = inputSource.gripSpace || inputSource.targetRaySpace;
+                if (!trackingSpace) continue;
+
+                const handedness = inputSource.handedness;  // 'left', 'right', 'none', or ''
+                const pose = frame.getPose(trackingSpace, xrRefSpace);
+
+                // Capture for debug panel
+                if (handedness === 'left' || handedness === 'right') {
+                    const side = rawData[handedness];
+                    side.pose = pose;
+                    side.gamepad = inputSource.gamepad;
+                    side.inputSource = inputSource;
+                } else {
+                    // Non-hand input source (body tracker, leg controller, etc.)
+                    rawData.other.push({
+                        handedness: handedness || 'none',
+                        targetRayMode: inputSource.targetRayMode,
+                        profiles: inputSource.profiles?.join(', ') ?? '',
+                        pose: pose,
+                        gamepad: inputSource.gamepad,
+                        hand: inputSource.hand,
+                    });
+                }
+
+                if (!shouldSend || !pose) continue;
+
+                // Determine topic name based on handedness
+                let poseChannel, joyChannel, frameId;
+                if (handedness === 'left') {
+                    poseChannel = "/vr_left_pose#geometry_msgs.PoseStamped";
+                    joyChannel = "/vr_left_joy#sensor_msgs.Joy";
+                    frameId = "left";
+                } else if (handedness === 'right') {
+                    poseChannel = "/vr_right_pose#geometry_msgs.PoseStamped";
+                    joyChannel = "/vr_right_joy#sensor_msgs.Joy";
+                    frameId = "right";
+                } else {
+                    // Other input sources get indexed topics
+                    frameId = `other_${otherIdx}`;
+                    poseChannel = `/vr_other_${otherIdx}_pose#geometry_msgs.PoseStamped`;
+                    joyChannel = `/vr_other_${otherIdx}_joy#sensor_msgs.Joy`;
+                    otherIdx++;
+                }
+
+                // Send PoseStamped
+                const pos = pose.transform.position;
+                const rot = pose.transform.orientation;
+                const nowMs = Date.now();
+
+                const poseStamped = new geometry_msgs.PoseStamped({
+                    header: new std_msgs.Header({
+                        stamp: new std_msgs.Time({ sec: Math.floor(nowMs / 1000), nsec: (nowMs % 1000) * 1_000_000 }),
+                        frame_id: frameId
+                    }),
+                    pose: new geometry_msgs.Pose({
+                        position: new geometry_msgs.Point({ x: pos.x, y: pos.y, z: pos.z }),
+                        orientation: new geometry_msgs.Quaternion({ x: rot.x, y: rot.y, z: rot.z, w: rot.w })
+                    })
+                });
+
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(encodePacket(poseChannel, poseStamped));
+                }
+
+                // Send Joy with ALL raw gamepad data
+                const gamepad = inputSource.gamepad;
+                if (gamepad) {
+                    // Send ALL axes as-is + append button analog values
+                    const axes = [];
+                    for (let i = 0; i < gamepad.axes.length; i++) {
+                        axes.push(gamepad.axes[i] ?? 0.0);
+                    }
+                    for (let i = 0; i < gamepad.buttons.length; i++) {
+                        axes.push(gamepad.buttons[i]?.value ?? 0.0);
+                    }
+
+                    // Send ALL buttons as digital (pressed)
+                    const buttons = [];
+                    for (let i = 0; i < gamepad.buttons.length; i++) {
+                        buttons.push(gamepad.buttons[i]?.pressed ? 1 : 0);
+                    }
+
+                    const joyMsg = new sensor_msgs.Joy({
+                        header: new std_msgs.Header({
+                            stamp: new std_msgs.Time({ sec: Math.floor(nowMs / 1000), nsec: (nowMs % 1000) * 1_000_000 }),
+                            frame_id: frameId
+                        }),
+                        axes_length: axes.length,
+                        buttons_length: buttons.length,
+                        axes: axes,
+                        buttons: buttons
+                    });
+
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(encodePacket(joyChannel, joyMsg));
+                    }
+                }
+            }
+
+            // Update debug panel ~10Hz (don't spam DOM)
+            if (frameCount++ % 7 === 0) {
+                updateDebugPanel();
+            }
+        }
+
+        // ─── VR Loop ─────────────────────────────────────────────
+        function onXRFrame(time, frame) {
+            if (!xrSession) return;
+            xrSession.requestAnimationFrame(onXRFrame);
+            processTracking(frame);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+        }
+
+        // ─── Start VR ────────────────────────────────────────────
+        async function startVR() {
+            try {
+                setStatus('Initializing WebGL...');
+                initGL();
+                setStatus('Requesting VR session...');
+
+                let session = null;
+                let sessionMode = '';
+
+                // Try immersive-ar first (passthrough), fallback to immersive-vr
+                try {
+                    session = await navigator.xr.requestSession('immersive-ar', {
+                        requiredFeatures: ['local-floor'],
+                        optionalFeatures: ['hand-tracking']
+                    });
+                    sessionMode = 'immersive-ar';
+                } catch (arError) {
+                    console.log('immersive-ar not available, trying immersive-vr');
+                    session = await navigator.xr.requestSession('immersive-vr', {
+                        requiredFeatures: ['local-floor'],
+                        optionalFeatures: ['hand-tracking']
+                    });
+                    sessionMode = 'immersive-vr';
+                }
+
+                xrSession = session;
+                rawData.sessionMode = sessionMode;
+
+                const glLayer = new XRWebGLLayer(session, gl);
+                await session.updateRenderState({ baseLayer: glLayer });
+
+                xrRefSpace = await session.requestReferenceSpace('local-floor');
+
+                setStatus('VR active');
+
+                session.addEventListener('end', () => {
+                    setStatus('VR session ended');
+                    xrSession = null;
+                    disconnect();
+                });
+
+                // Log input source changes (useful for discovering Pico behavior)
+                session.addEventListener('inputsourceschange', (event) => {
+                    console.log('Input sources changed:', {
+                        added: event.added.map(s => `${s.handedness} (${s.targetRayMode}, profiles: [${s.profiles?.join(', ')}])`),
+                        removed: event.removed.map(s => `${s.handedness}`),
+                    });
+                });
+
+                session.requestAnimationFrame(onXRFrame);
+
+            } catch (error) {
+                setStatus('VR failed: ' + error.message);
+                console.error('VR session error:', error);
+                throw error;
+            }
+        }
+
+        // ─── Connect/Disconnect ──────────────────────────────────
+        window.connect = async function() {
+            try {
+                connectBtn.disabled = true;
+
+                if (!navigator.xr) {
+                    throw new Error('WebXR not supported. Use Pico browser.');
+                }
+
+                await setupWebSocket();
+                await startVR();
+
+                connectBtn.classList.add('hidden');
+                disconnectBtn.classList.remove('hidden');
+                debugEl.classList.remove('hidden');
+
+            } catch (error) {
+                setStatus('Connection failed');
+                console.error('Connection error:', error);
+                connectBtn.disabled = false;
+            }
+        };
+
+        window.disconnect = async function() {
+            setStatus('Disconnecting...');
+
+            if (xrSession) {
+                await xrSession.end().catch(console.error);
+                xrSession = null;
+            }
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+
+            connectBtn.classList.remove('hidden');
+            connectBtn.disabled = false;
+            disconnectBtn.classList.add('hidden');
+            debugEl.classList.add('hidden');
+            setStatus('Disconnected');
+        };
+
+        // ─── Init ────────────────────────────────────────────────
+        window.addEventListener('load', async () => {
+            if (!navigator.xr) {
+                setStatus('WebXR not available');
+                connectBtn.disabled = true;
+                return;
+            }
+            try {
+                const arSupported = await navigator.xr.isSessionSupported('immersive-ar').catch(() => false);
+                const vrSupported = await navigator.xr.isSessionSupported('immersive-vr').catch(() => false);
+                if (!arSupported && !vrSupported) {
+                    setStatus('VR/AR not supported');
+                    connectBtn.disabled = true;
+                }
+            } catch (error) {
+                console.error('WebXR check failed:', error);
+            }
+        });
+    </script>
+</body>
+</html>
