@@ -82,7 +82,7 @@ class TestControlCoordinatorE2E:
 
         # Wait for it to be ready
         lcm_spy.wait_for_saved_topic(
-            "/coordinator/joint_state#sensor_msgs.JointState", timeout=20.0
+            "/coordinator/joint_state#sensor_msgs.JointState", timeout=15.0
         )
 
         # Create RPC client
@@ -166,7 +166,7 @@ class TestControlCoordinatorE2E:
         # Start coordinator
         start_blueprint("coordinator-mock")
         lcm_spy.wait_for_saved_topic(
-            "/coordinator/joint_state#sensor_msgs.JointState", timeout=20.0
+            "/coordinator/joint_state#sensor_msgs.JointState", timeout=15.0
         )
 
         client = RPCClient(None, ControlCoordinator)
@@ -211,7 +211,7 @@ class TestControlCoordinatorE2E:
         # Start dual-arm mock coordinator
         start_blueprint("coordinator-dual-mock")
         lcm_spy.wait_for_saved_topic(
-            "/coordinator/joint_state#sensor_msgs.JointState", timeout=20.0
+            "/coordinator/joint_state#sensor_msgs.JointState", timeout=15.0
         )
 
         client = RPCClient(None, ControlCoordinator)
