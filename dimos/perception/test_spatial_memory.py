@@ -26,7 +26,7 @@ from dimos.perception.spatial_perception import SpatialMemory
 from dimos.stream.video_provider import VideoProvider
 
 
-@pytest.mark.heavy
+@pytest.mark.slow
 class TestSpatialMemory:
     @pytest.fixture(scope="class")
     def temp_dir(self):

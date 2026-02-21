@@ -12,17 +12,19 @@ There are different types of tests based on what their goal is:
 
 | Type | Description | Mocking | Speed |
 |------|-------------|---------|-------|
-| Unit | Test a small individual piece of code | All dependencies | Very fast |
-| Integration | Test the integration between multiple units of code | Most dependencies | Some fast, some slow |
-| Functional | Test a particular desired functionality | Some dependencies | Some fast, some slow |
+| Unit | Test a small individual piece of code | All external systems | Very fast |
+| Integration | Test the integration between multiple units of code | Most external systems | Some fast, some slow |
+| Functional | Test a particular desired functionality | Some external systems | Some fast, some slow |
 | End-to-end | Test the entire system as a whole from the perspective of the user | None | Very slow |
 
 The distinction between unit, integration, and functional tests is often debated and rarely productive.
 
 Rather than waste time on classifying tests, it's better to separate tests by how they are used:
 
-* **fast tests**: tests which you can run after each code change (people often run them with filesystem watchers: whenever a file is saved, automatically run the tests)
-* **slow tests**: tests which you run every once in a while to make sure you haven't broken anything (maybe every commit, but definitely before publishing a PR)
+| Test Group | When to run | Typical usage |
+|------------|-------------|---------------|
+| **fast tests** | after each code change | often run with filesystem watchers so tests rerun whenever a file is saved |
+| **slow tests** | every once in a while to make sure you haven't broken anything | maybe every commit, but definitely before publishing a PR |
 
 The purpose of running tests in a loop is to get immediate feedback. The faster the loop, the easier it is to identify a problem since the source is the tiny bit of code you changed.
 
@@ -42,7 +44,7 @@ This is the same as:
 pytest dimos
 ```
 
-The default `addopts` in `pyproject.toml` includes a `-m` filter that excludes slow markers (like `integration`, `heavy`, `e2e`, etc.), so plain `pytest dimos` only runs fast tests.
+The default `addopts` in `pyproject.toml` includes a `-m` filter that excludes the `slow` marker (and others like `lcm`, `ros`, etc.), so plain `pytest dimos` only runs fast tests.
 
 ### Slow tests
 
@@ -55,7 +57,7 @@ Run the slow tests:
 This overrides the default `-m` filter to include most markers. When writing or debugging a specific slow test, override `-m` yourself:
 
 ```bash
-pytest -m integration dimos/path/to/test_something.py
+pytest -m slow dimos/path/to/test_something.py
 ```
 
 Note: passing `-m` on the command line overrides the default from `addopts`, so you get exactly the marker set you asked for.
@@ -120,3 +122,43 @@ There are other useful things in `mocker`, like `mocker.MagicMock()` for creatin
 | `--pdb` | Drop into the debugger when a test fails |
 | `--tb=short` | Shorter tracebacks |
 | `--durations=0` | Measure the speed of each test |
+
+## Markers
+
+Tests are categorized with pytest markers. The default `addopts` in `pyproject.toml` excludes all slow markers so that `pytest dimos` only runs fast tests.
+
+### Speed / category markers
+
+| Marker | Excluded from fast? | Purpose |
+|--------|---------------------|---------|
+| `slow` | yes | Tests that are too slow for the fast loop |
+| `lcm` | yes | Tests that run the actual LCM bus |
+| `ros` | yes | Tests that depend on ROS |
+| `gpu` | yes | Tests that require a GPU |
+| `cuda` | yes | Tests that specifically require CUDA |
+| `tool` | yes | Developer tooling tests |
+| `mujoco` | yes | Tests that open MuJoCo |
+
+### Custom skipif markers
+
+These markers conditionally skip tests based on the environment. They are defined in `dimos/conftest.py` and evaluated at collection time, so you use them as simple markers (no arguments needed):
+
+| Marker | Skips when |
+|--------|-----------|
+| `skipif_in_ci` | `CI` env var is set |
+| `skipif_no_openai` | `OPENAI_API_KEY` env var is **not** set |
+| `skipif_no_alibaba` | `ALIBABA_API_KEY` env var is **not** set |
+
+Usage:
+
+```python
+@pytest.mark.skipif_in_ci
+@pytest.mark.skipif_no_openai
+@pytest.mark.slow
+def test_something_expensive():
+    ...
+```
+
+### Future direction
+
+The goal is to converge on just two categories: **fast** (unmarked, the default) and **slow** (everything else). The remaining specialized markers (`lcm`, `ros`, `gpu`, etc.) exist for infrastructure reasons (e.g. `lcm` tests need a running LCM bus, `ros` tests need a ROS image). CI runs slow tests in a single `run-slow-tests` job.

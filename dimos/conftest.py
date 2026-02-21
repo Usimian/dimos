@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import os
 import threading
 
 from dotenv import load_dotenv
@@ -21,6 +22,12 @@ import pytest
 from dimos.protocol.service.lcmservice import autoconf
 
 load_dotenv()
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "skipif_in_ci: skip when CI env var is set")
+    config.addinivalue_line("markers", "skipif_no_openai: skip when OPENAI_API_KEY is not set")
+    config.addinivalue_line("markers", "skipif_no_alibaba: skip when ALIBABA_API_KEY is not set")
 
 
 def _has_cuda():
@@ -38,12 +45,24 @@ def _has_cuda():
 @pytest.hookimpl()
 def pytest_collection_modifyitems(config, items):
     if not _has_cuda():
-        skip_marker = pytest.mark.skip(
+        skip_cuda = pytest.mark.skip(
             reason="CUDA is not available (torch.cuda.is_available() returned False)"
         )
         for item in items:
             if item.get_closest_marker("cuda"):
-                item.add_marker(skip_marker)
+                item.add_marker(skip_cuda)
+
+    _skipif_markers = {
+        "skipif_in_ci": (bool(os.getenv("CI")), "Skipped in CI"),
+        "skipif_no_openai": (not os.getenv("OPENAI_API_KEY"), "OPENAI_API_KEY not set"),
+        "skipif_no_alibaba": (not os.getenv("ALIBABA_API_KEY"), "ALIBABA_API_KEY not set"),
+    }
+    for marker_name, (condition, reason) in _skipif_markers.items():
+        if condition:
+            skip = pytest.mark.skip(reason=reason)
+            for item in items:
+                if item.get_closest_marker(marker_name):
+                    item.add_marker(skip)
 
 
 @pytest.fixture
@@ -70,7 +89,7 @@ _seen_threads = set()
 _seen_threads_lock = threading.RLock()
 _before_test_threads = {}  # Map test name to set of thread IDs before test
 
-_skip_for = ["lcm", "heavy", "ros"]
+_skip_for = ["lcm", "ros", "slow"]
 
 
 @pytest.fixture(scope="module")

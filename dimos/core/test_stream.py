@@ -21,6 +21,7 @@ from dimos.core import (
     In,
     LCMTransport,
     Module,
+    pLCMTransport,
     rpc,
 )
 from dimos.core.testing import MockRobotClient, dimos
@@ -72,7 +73,7 @@ class ClassicSubscriber(SubscriberBase):
         self.unsub2 = self.odom.subscribe(self.sub2_msgs.append)
 
     @rpc
-    def stop(self) -> None:
+    def unsub_all(self) -> None:
         if self.unsub:
             self.unsub()
             self.unsub = None
@@ -97,7 +98,7 @@ class RXPYSubscriber(SubscriberBase):
         self.unsub2 = self.odom.observable().subscribe(self.sub2_msgs.append)
 
     @rpc
-    def stop(self) -> None:
+    def unsub_all(self) -> None:
         if self.unsub:
             self.unsub.dispose()
             self.unsub = None
@@ -153,12 +154,13 @@ class SpyLCMTransport(LCMTransport):
 
 
 @pytest.mark.parametrize("subscriber_class", [ClassicSubscriber, RXPYSubscriber])
-@pytest.mark.module
+@pytest.mark.slow
 def test_subscription(dimos, subscriber_class) -> None:
     robot = dimos.deploy(MockRobotClient)
 
     robot.lidar.transport = SpyLCMTransport("/lidar", PointCloud2)
     robot.odometry.transport = SpyLCMTransport("/odom", Odometry)
+    robot.mov.transport = pLCMTransport("/mov")
 
     subscriber = dimos.deploy(subscriber_class)
 
@@ -175,7 +177,7 @@ def test_subscription(dimos, subscriber_class) -> None:
     subscriber.sub2()
 
     time.sleep(0.25)
-    subscriber.stop()
+    subscriber.unsub_all()
 
     assert subscriber.active_subscribers() == 0
     assert subscriber.sub1_msgs_len() != 0
@@ -189,14 +191,18 @@ def test_subscription(dimos, subscriber_class) -> None:
     assert total_msg_n == subscriber.sub1_msgs_len() + subscriber.sub2_msgs_len()
 
     robot.stop()
+    subscriber.stop_rpc_client()
+    robot.stop_rpc_client()
+    dimos.close_all()
 
 
-@pytest.mark.module
+@pytest.mark.slow
 def test_get_next(dimos) -> None:
     robot = dimos.deploy(MockRobotClient)
 
     robot.lidar.transport = SpyLCMTransport("/lidar", PointCloud2)
     robot.odometry.transport = SpyLCMTransport("/odom", Odometry)
+    robot.mov.transport = pLCMTransport("/mov")
 
     subscriber = dimos.deploy(RXPYSubscriber)
     subscriber.odom.connect(robot.odometry)
@@ -218,14 +224,18 @@ def test_get_next(dimos) -> None:
 
     assert next_odom != odom
     robot.stop()
+    subscriber.stop_rpc_client()
+    robot.stop_rpc_client()
+    dimos.close_all()
 
 
-@pytest.mark.module
+@pytest.mark.slow
 def test_hot_getter(dimos) -> None:
     robot = dimos.deploy(MockRobotClient)
 
     robot.lidar.transport = SpyLCMTransport("/lidar", PointCloud2)
     robot.odometry.transport = SpyLCMTransport("/odom", Odometry)
+    robot.mov.transport = pLCMTransport("/mov")
 
     subscriber = dimos.deploy(RXPYSubscriber)
     subscriber.odom.connect(robot.odometry)
@@ -254,3 +264,6 @@ def test_hot_getter(dimos) -> None:
     subscriber.stop_hot_getter()
 
     robot.stop()
+    subscriber.stop_rpc_client()
+    robot.stop_rpc_client()
+    dimos.close_all()
