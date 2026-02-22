@@ -196,7 +196,3 @@ class TestSpatialMemory:
             pytest.fail(f"Error in test: {e}")
         finally:
             video_provider.dispose_all()
-
-
-if __name__ == "__main__":
-    pytest.main(["-v", __file__])

@@ -221,7 +221,3 @@ class TestTemporalMemoryModule:
         assert (output_path / "frames_index.jsonl").exists(), "frames_index.jsonl should exist"
 
         logger.info("All temporal memory module tests passed!")
-
-
-if __name__ == "__main__":
-    pytest.main(["-v", "-s", __file__])

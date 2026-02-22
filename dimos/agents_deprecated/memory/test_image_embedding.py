@@ -205,7 +205,3 @@ class TestImageEmbedding:
 
         except Exception as e:
             pytest.fail(f"Similarity test failed with error: {e}")
-
-
-if __name__ == "__main__":
-    pytest.main(["-v", "--disable-warnings", __file__])

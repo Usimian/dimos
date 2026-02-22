@@ -518,7 +518,3 @@ class TestIgnoreRegions:
 
         # Verify the ignored region still has .md placeholder
         assert "[Configuration](.md) example" in new_content
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
