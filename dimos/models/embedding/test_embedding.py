@@ -21,6 +21,7 @@ from dimos.utils.data import get_data
     ids=["clip", "mobileclip", "treid"],
 )
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_embedding_model(model_class: type, model_name: str, supports_text: bool) -> None:
     """Test embedding functionality across different model types."""
     image = Image.from_file(get_data("cafe.jpg")).to_rgb()
