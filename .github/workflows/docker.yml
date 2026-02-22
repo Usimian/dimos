@@ -212,38 +212,8 @@ jobs:
     uses: ./.github/workflows/tests.yml
     secrets: inherit
     with:
-      cmd: "pytest && pytest -m ros" # run tests that depend on ros as well
+      cmd: "pytest -m 'not (tool or mujoco)'"
       dev-image: ros-dev:${{ (needs.check-changes.outputs.python == 'true' || needs.check-changes.outputs.dev == 'true' || needs.check-changes.outputs.ros == 'true') && needs.ros-dev.result == 'success' && needs.check-changes.outputs.branch-tag || 'dev' }}
-
-  run-tests:
-    needs: [check-changes, dev]
-    if: ${{
-      always() &&
-      needs.check-changes.result == 'success' &&
-      (needs.check-changes.outputs.tests == 'true' ||
-       needs.check-changes.outputs.python == 'true' ||
-       needs.check-changes.outputs.dev == 'true')
-      }}
-    uses: ./.github/workflows/tests.yml
-    secrets: inherit
-    with:
-      cmd: "pytest"
-      dev-image: dev:${{ (needs.check-changes.outputs.python == 'true' || needs.check-changes.outputs.dev == 'true') && needs.dev.result == 'success' && needs.check-changes.outputs.branch-tag || 'dev' }}
-
-  run-slow-tests:
-    needs: [check-changes, dev]
-    if: ${{
-      always() &&
-      needs.check-changes.result == 'success' &&
-      (needs.check-changes.outputs.tests == 'true' ||
-       needs.check-changes.outputs.python == 'true' ||
-       needs.check-changes.outputs.dev == 'true')
-      }}
-    uses: ./.github/workflows/tests.yml
-    secrets: inherit
-    with:
-      cmd: "pytest -m 'slow or lcm'"
-      dev-image: dev:${{ (needs.check-changes.outputs.python == 'true' || needs.check-changes.outputs.dev == 'true') && needs.dev.result == 'success' && needs.check-changes.outputs.branch-tag || 'dev' }}
 
   run-mypy:
     needs: [check-changes, ros-dev]
@@ -262,7 +232,7 @@ jobs:
       dev-image: ros-dev:${{ (needs.check-changes.outputs.python == 'true' || needs.check-changes.outputs.dev == 'true' || needs.check-changes.outputs.ros == 'true') && needs.ros-dev.result == 'success' && needs.check-changes.outputs.branch-tag || 'dev' }}
 
   ci-complete:
-    needs: [check-changes, ros, python, ros-python, dev, ros-dev, run-tests, run-slow-tests, run-ros-tests, run-mypy]
+    needs: [check-changes, ros, python, ros-python, dev, ros-dev, run-ros-tests, run-mypy]
     runs-on: [self-hosted, Linux]
     if: always()
     steps:

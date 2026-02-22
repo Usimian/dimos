@@ -89,7 +89,7 @@ _seen_threads = set()
 _seen_threads_lock = threading.RLock()
 _before_test_threads = {}  # Map test name to set of thread IDs before test
 
-_skip_for = ["lcm", "ros", "slow"]
+_skip_for = ["ros"]
 
 
 @pytest.fixture(scope="module")

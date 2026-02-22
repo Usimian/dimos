@@ -393,7 +393,6 @@ testpaths = ["dimos"]
 markers = [
     "tool: dev tooling",
     "ros: depend on ros",
-    "lcm: tests that run actual LCM bus (can't execute in CI)",
     "gpu: tests that require GPU",
     "cuda: tests which require CUDA (specifically CUDA not just GPU acceleration)",
     "slow: tests that are too slow for the fast loop",
@@ -403,7 +402,7 @@ env = [
   "GOOGLE_MAPS_API_KEY=AIzafake_google_key",
   "PYTHONWARNINGS=ignore:cupyx.jit.rawkernel is experimental:FutureWarning",
 ]
-addopts = "-v -s -p no:warnings -ra --color=yes -m 'not (tool or lcm or ros or gpu or slow or mujoco)'"
+addopts = "-v -r a -p no:warnings --color=yes -m 'not (tool or ros or gpu or slow or mujoco)'"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
