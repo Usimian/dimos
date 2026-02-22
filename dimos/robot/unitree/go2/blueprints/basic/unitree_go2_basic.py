@@ -23,6 +23,7 @@ from dimos.core.transport import pSHMTransport
 from dimos.msgs.sensor_msgs import Image
 from dimos.protocol.pubsub.impl.lcmpubsub import LCM
 from dimos.robot.unitree.go2.connection import go2_connection
+from dimos.robot.unitree.requirements import unitree_clock_sync
 from dimos.web.websocket_vis.websocket_vis_module import websocket_vis
 
 # Mac has some issue with high bandwidth UDP, so we use pSHMTransport for color_image
@@ -93,11 +94,17 @@ match global_config.viewer_backend:
     case _:
         with_vis = _transports_base
 
-unitree_go2_basic = autoconnect(
-    with_vis,
-    go2_connection(),
-    websocket_vis(),
-).global_config(n_dask_workers=4, robot_model="unitree_go2")
+unitree_go2_basic = (
+    autoconnect(
+        with_vis,
+        go2_connection(),
+        websocket_vis(),
+    )
+    .global_config(n_dask_workers=4, robot_model="unitree_go2")
+    .requirements(
+        unitree_clock_sync,
+    )
+)
 
 __all__ = [
     "unitree_go2_basic",
