@@ -162,9 +162,6 @@ def monitor_threads(request):
             # HuggingFace safetensors conversion thread - no user cleanup API
             # https://github.com/huggingface/transformers/issues/29513
             "Thread-auto_conversion",
-            # Global ThreadPoolScheduler (dimos.utils.threadpool) creates pooled
-            # threads that persist for the process lifetime — not a leak.
-            "ThreadPoolExecutor",
         ]
         new_threads = [
             t
