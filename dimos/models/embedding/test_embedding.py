@@ -96,6 +96,7 @@ def test_embedding_model(model_class: type, model_name: str, supports_text: bool
     ids=["clip", "mobileclip"],
 )
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_text_image_retrieval(model_class: type, model_name: str) -> None:
     """Test text-to-image retrieval using embedding similarity."""
     image = Image.from_file(get_data("cafe.jpg")).to_rgb()
@@ -128,6 +129,7 @@ def test_text_image_retrieval(model_class: type, model_name: str) -> None:
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_embedding_device_transfer() -> None:
     """Test embedding device transfer operations."""
     image = Image.from_file(get_data("cafe.jpg")).to_rgb()

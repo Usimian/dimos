@@ -111,6 +111,7 @@ class OdometryReplayModule(Module):
 
 @pytest.mark.gpu
 @pytest.mark.slow
+@pytest.mark.skipif_in_ci
 class TestSpatialMemoryModule:
     @pytest.fixture(scope="function")
     def temp_dir(self):

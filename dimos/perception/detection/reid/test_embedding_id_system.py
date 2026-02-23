@@ -47,6 +47,7 @@ def test_image():
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_update_embedding_single(track_associator, mobileclip_model, test_image) -> None:
     """Test updating embedding for a single track."""
     embedding = mobileclip_model.embed(test_image)
@@ -65,6 +66,7 @@ def test_update_embedding_single(track_associator, mobileclip_model, test_image)
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_update_embedding_multiple(track_associator, mobileclip_model, test_image) -> None:
     """Test storing multiple embeddings per track."""
     embedding1 = mobileclip_model.embed(test_image)
@@ -92,6 +94,7 @@ def test_update_embedding_multiple(track_associator, mobileclip_model, test_imag
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_negative_constraints(track_associator) -> None:
     """Test negative constraint recording."""
     # Simulate frame with 3 tracks
@@ -108,6 +111,7 @@ def test_negative_constraints(track_associator) -> None:
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_associate_new_track(track_associator, mobileclip_model, test_image) -> None:
     """Test associating a new track creates new long_term_id."""
     embedding = mobileclip_model.embed(test_image)
@@ -122,6 +126,7 @@ def test_associate_new_track(track_associator, mobileclip_model, test_image) -> 
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_associate_similar_tracks(track_associator, mobileclip_model, test_image) -> None:
     """Test associating similar tracks to same long_term_id."""
     # Create embeddings from same image (should be very similar)
@@ -142,6 +147,7 @@ def test_associate_similar_tracks(track_associator, mobileclip_model, test_image
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_associate_with_negative_constraint(track_associator, mobileclip_model, test_image) -> None:
     """Test that negative constraints prevent association."""
     # Create similar embeddings
@@ -167,6 +173,7 @@ def test_associate_with_negative_constraint(track_associator, mobileclip_model, 
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_associate_different_objects(track_associator, mobileclip_model, test_image) -> None:
     """Test that dissimilar embeddings get different long_term_ids."""
     # Create embeddings for image and text (very different)
@@ -187,6 +194,7 @@ def test_associate_different_objects(track_associator, mobileclip_model, test_im
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_associate_returns_cached(track_associator, mobileclip_model, test_image) -> None:
     """Test that repeated calls return same long_term_id."""
     embedding = mobileclip_model.embed(test_image)
@@ -203,6 +211,7 @@ def test_associate_returns_cached(track_associator, mobileclip_model, test_image
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_associate_no_embedding(track_associator) -> None:
     """Test that associate creates new ID for track without embedding."""
     # Track with no embedding gets assigned a new ID
@@ -212,6 +221,7 @@ def test_associate_no_embedding(track_associator) -> None:
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_embeddings_stored_as_numpy(track_associator, mobileclip_model, test_image) -> None:
     """Test that embeddings are stored as numpy arrays for efficient CPU comparisons."""
     embedding = mobileclip_model.embed(test_image)
@@ -233,6 +243,7 @@ def test_embeddings_stored_as_numpy(track_associator, mobileclip_model, test_ima
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_similarity_threshold_configurable(mobileclip_model) -> None:
     """Test that similarity threshold is configurable."""
     associator_strict = EmbeddingIDSystem(model=lambda: mobileclip_model, similarity_threshold=0.95)
@@ -243,6 +254,7 @@ def test_similarity_threshold_configurable(mobileclip_model) -> None:
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_multi_track_scenario(track_associator, mobileclip_model, test_image) -> None:
     """Test realistic scenario with multiple tracks across frames."""
     # Frame 1: Track 1 appears
