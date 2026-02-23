@@ -21,7 +21,7 @@ from dimos.msgs.nav_msgs import Path
 
 
 class PathDistancer:
-    _lookahead_dist: float = 0.5
+    _lookahead_dist: float = 1.0
     _path: NDArray[np.float64]
     _cumulative_dists: NDArray[np.float64]
 

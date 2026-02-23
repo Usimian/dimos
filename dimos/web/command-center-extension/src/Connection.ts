@@ -64,8 +64,8 @@ export default class Connection {
     });
   }
 
-  worldClick(worldX: number, worldY: number): void {
-    this.socket.emit("click", [worldX, worldY]);
+  worldClick(worldX: number, worldY: number, yaw?: number): void {
+    this.socket.emit("click", [worldX, worldY, yaw ?? null]);
   }
 
   startExplore(): void {

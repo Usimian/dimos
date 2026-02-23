@@ -51,8 +51,8 @@ export default function App(): React.ReactElement {
     };
   }, []);
 
-  const handleWorldClick = React.useCallback((worldX: number, worldY: number) => {
-    connectionRef.current?.worldClick(worldX, worldY);
+  const handleWorldClick = React.useCallback((worldX: number, worldY: number, yaw?: number) => {
+    connectionRef.current?.worldClick(worldX, worldY, yaw);
   }, []);
 
   const handleStartExplore = React.useCallback(() => {

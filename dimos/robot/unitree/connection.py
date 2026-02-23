@@ -164,9 +164,12 @@ class UnitreeWebRTCConnection(Resource):
         # y - positive forward, negative backwards
         # yaw - Positive rotate right, negative rotate left
         async def async_move() -> None:
-            self.conn.datachannel.pub_sub.publish_without_callback(
-                RTC_TOPIC["WIRELESS_CONTROLLER"],
-                data={"lx": -y, "ly": x, "rx": -yaw, "ry": 0},
+            await self.conn.datachannel.pub_sub.publish_request_new(
+                RTC_TOPIC["SPORT_MOD"],
+                # SPORT_MOD coordinate mapping (empirically confirmed):
+                # x - positive forward, negative backward
+                # z - positive CCW, negative CW (same sign convention as Twist angular.z)
+                {"api_id": SPORT_CMD["Move"], "parameter": {"x": x, "y": y, "z": yaw}},
             )
 
         async def async_move_duration() -> None:
@@ -275,7 +278,10 @@ class UnitreeWebRTCConnection(Resource):
         return backpressure(self.unitree_sub_stream(RTC_TOPIC["LOW_STATE"]))
 
     def standup(self) -> bool:
-        return bool(self.publish_request(RTC_TOPIC["SPORT_MOD"], {"api_id": SPORT_CMD["StandUp"]}))
+        result = bool(self.publish_request(RTC_TOPIC["SPORT_MOD"], {"api_id": SPORT_CMD["StandUp"]}))
+        time.sleep(1.5)
+        self.publish_request(RTC_TOPIC["SPORT_MOD"], {"api_id": SPORT_CMD["BalanceStand"]})
+        return result
 
     def liedown(self) -> bool:
         return bool(

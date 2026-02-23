@@ -33,7 +33,8 @@ from reactivex.disposable import Disposable
 import socketio  # type: ignore[import-untyped]
 from starlette.applications import Starlette
 from starlette.responses import FileResponse, RedirectResponse, Response
-from starlette.routing import Route
+from starlette.routing import Mount, Route
+from starlette.staticfiles import StaticFiles
 import uvicorn
 
 from dimos.utils.data import get_data
@@ -236,20 +237,28 @@ class WebsocketVisModule(Module):
 
         async def serve_command_center(request):  # type: ignore[no-untyped-def]
             """Serve the command center 2D visualization (built React app)."""
+            # Prefer dist-standalone build (from npm run build:standalone)
+            dist_index = _COMMAND_CENTER_DIR / "index.html"
+            if dist_index.exists():
+                return FileResponse(str(dist_index), media_type="text/html")
+            # Fall back to legacy single-file build
             index_file = get_data("command_center.html")
             if index_file.exists():
                 return FileResponse(index_file, media_type="text/html")
-            else:
-                return Response(
-                    content="Command center not built. Run: cd dimos/web/command-center-extension && npm install && npm run build:standalone",
-                    status_code=503,
-                    media_type="text/plain",
-                )
+            return Response(
+                content="Command center not built. Run: cd dimos/web/command-center-extension && npm install && npm run build:standalone",
+                status_code=503,
+                media_type="text/plain",
+            )
 
-        routes = [
+        routes: list = [
             Route("/", serve_index),
             Route("/command-center", serve_command_center),
         ]
+
+        # Serve compiled JS/CSS assets from the dist-standalone directory
+        if _COMMAND_CENTER_DIR.exists():
+            routes.append(Mount("/assets", app=StaticFiles(directory=str(_COMMAND_CENTER_DIR / "assets"))))
 
         starlette_app = Starlette(routes=routes)
 
@@ -275,15 +284,33 @@ class WebsocketVisModule(Module):
 
         @self.sio.event  # type: ignore[untyped-decorator]
         async def click(sid, position) -> None:  # type: ignore[no-untyped-def]
+            from dimos.msgs.geometry_msgs import Quaternion
+            from dimos.utils.transform_utils import euler_to_quaternion
+
+            yaw = position[2] if len(position) > 2 and position[2] is not None else None
+            if yaw is not None:
+                q = euler_to_quaternion(Vector3(0, 0, float(yaw)))
+                orientation = (q.x, q.y, q.z, q.w)
+            else:
+                orientation = (0, 0, 0, 1)
+
             goal = PoseStamped(
                 position=(position[0], position[1], 0),
-                orientation=(0, 0, 0, 1),  # Default orientation
+                orientation=orientation,
                 frame_id="world",
             )
             self.goal_request.publish(goal)
-            logger.info(
-                "Click goal published", x=round(goal.position.x, 3), y=round(goal.position.y, 3)
-            )
+            if yaw is not None:
+                logger.info(
+                    "Click goal published",
+                    x=round(goal.position.x, 3),
+                    y=round(goal.position.y, 3),
+                    yaw_deg=round(float(yaw) * 180 / 3.14159, 1),
+                )
+            else:
+                logger.info(
+                    "Click goal published", x=round(goal.position.x, 3), y=round(goal.position.y, 3)
+                )
 
         @self.sio.event  # type: ignore[untyped-decorator]
         async def gps_goal(sid: str, goal: dict[str, float]) -> None:

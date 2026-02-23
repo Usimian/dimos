@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import os
 from threading import Event, RLock, Thread
 import time
@@ -27,7 +28,7 @@ from dimos.msgs.geometry_msgs import Twist
 from dimos.msgs.geometry_msgs.PoseStamped import PoseStamped
 from dimos.msgs.nav_msgs import OccupancyGrid, Path
 from dimos.navigation.base import NavigationState
-from dimos.navigation.replanning_a_star.controllers import Controller, PController
+from dimos.navigation.replanning_a_star.controllers import Controller, PdController
 from dimos.navigation.replanning_a_star.navigation_map import NavigationMap
 from dimos.navigation.replanning_a_star.path_clearance import PathClearance
 from dimos.navigation.replanning_a_star.path_distancer import PathDistancer
@@ -63,7 +64,7 @@ class LocalPlanner(Resource):
     _goal_tolerance: float
     _controller: Controller
 
-    _speed: float = 0.55
+    _speed: float = 0.35
     _control_frequency: float = 10
     _orientation_tolerance: float = 0.35
     _navigation_costmap_interval: float = 1.0
@@ -85,7 +86,7 @@ class LocalPlanner(Resource):
         self._navigation_map = navigation_map
         self._goal_tolerance = goal_tolerance
 
-        self._controller = PController(
+        self._controller = PdController(
             self._global_config,
             self._speed,
             self._control_frequency,
@@ -172,6 +173,11 @@ class LocalPlanner(Resource):
             first_yaw = path.poses[0].orientation.euler[2]
             robot_yaw = current_odom.orientation.euler[2]
             initial_yaw_error = angle_diff(first_yaw, robot_yaw)
+            odom_q = current_odom.orientation
+            print(f"DEBUG _loop start: odom_quat=({odom_q.x:.4f},{odom_q.y:.4f},{odom_q.z:.4f},{odom_q.w:.4f}), robot_yaw={robot_yaw:.3f} rad ({math.degrees(robot_yaw):.1f}°), first_yaw={first_yaw:.3f} rad ({math.degrees(first_yaw):.1f}°), initial_yaw_error={initial_yaw_error:.3f} rad ({math.degrees(initial_yaw_error):.1f}°)", flush=True)
+            print(f"DEBUG path first pose: pos=({path.poses[0].position.x:.3f},{path.poses[0].position.y:.3f}), robot_pos=({current_odom.position.x:.3f},{current_odom.position.y:.3f})", flush=True)
+            if len(path.poses) > 1:
+                print(f"DEBUG path second pose: pos=({path.poses[1].position.x:.3f},{path.poses[1].position.y:.3f})", flush=True)
             self._controller.reset_yaw_error(initial_yaw_error)
             angle_in_tolerance = abs(initial_yaw_error) < self._orientation_tolerance
             if angle_in_tolerance:
@@ -237,6 +243,8 @@ class LocalPlanner(Resource):
         first_yaw = first_pose.orientation.euler[2]
         robot_yaw = current_odom.orientation.euler[2]
         yaw_error = angle_diff(first_yaw, robot_yaw)
+
+        print(f"DEBUG initial_rotation: first_yaw={first_yaw:.3f} rad ({math.degrees(first_yaw):.1f}°), robot_yaw={robot_yaw:.3f} rad ({math.degrees(robot_yaw):.1f}°), yaw_error={yaw_error:.3f} rad ({math.degrees(yaw_error):.1f}°)", flush=True)
 
         if abs(yaw_error) < self._orientation_tolerance:
             with self._lock:

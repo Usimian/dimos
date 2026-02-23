@@ -3,6 +3,7 @@ import * as React from "react";
 
 import { Costmap, Path, Vector } from "../types";
 import CostmapLayer from "./CostmapLayer";
+import GoalArrowLayer from "./GoalArrowLayer";
 import PathLayer from "./PathLayer";
 import VectorLayer from "./VectorLayer";
 
@@ -10,9 +11,10 @@ interface VisualizerComponentProps {
   costmap: Costmap | null;
   robotPose: Vector | null;
   path: Path | null;
+  goalArrow?: { startPx: [number, number]; endPx: [number, number] } | null;
 }
 
-const VisualizerComponent: React.FC<VisualizerComponentProps> = ({ costmap, robotPose, path }) => {
+const VisualizerComponent: React.FC<VisualizerComponentProps> = ({ costmap, robotPose, path, goalArrow }) => {
   const svgRef = React.useRef<SVGSVGElement>(null);
   const [dimensions, setDimensions] = React.useState({ width: 800, height: 600 });
   const { width, height } = dimensions;
@@ -93,6 +95,9 @@ const VisualizerComponent: React.FC<VisualizerComponentProps> = ({ costmap, robo
         {path && worldToPx && <PathLayer path={path} worldToPx={worldToPx} />}
         {robotPose && worldToPx && (
           <VectorLayer vector={robotPose} label="robot" worldToPx={worldToPx} />
+        )}
+        {goalArrow && (
+          <GoalArrowLayer startPx={goalArrow.startPx} endPx={goalArrow.endPx} />
         )}
       </svg>
     </div>

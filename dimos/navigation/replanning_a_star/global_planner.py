@@ -66,7 +66,7 @@ class GlobalPlanner(Resource):
     _rotation_tolerance: float = math.radians(15)
     _replan_goal_tolerance: float = 0.5
     _max_replan_attempts: int = 10
-    _stuck_time_window: float = 8.0
+    _stuck_time_window: float = 15.0
     _max_path_deviation: float = 0.9
 
     def __init__(self, global_config: GlobalConfig) -> None:
@@ -213,10 +213,15 @@ class GlobalPlanner(Resource):
                 last_stuck_check = time.perf_counter()
                 continue
 
-            _, new_id = self._local_planner.get_unique_state()
+            planner_state, new_id = self._local_planner.get_unique_state()
 
             if new_id != last_id:
                 last_id = new_id
+                last_stuck_check = time.perf_counter()
+                continue
+
+            # Don't flag stuck during pure rotation phases — position won't change
+            if planner_state in ("initial_rotation", "final_rotation"):
                 last_stuck_check = time.perf_counter()
                 continue
 

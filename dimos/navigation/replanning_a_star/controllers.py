@@ -40,14 +40,15 @@ class PController:
     _control_frequency: float
 
     _min_linear_velocity: float = 0.2
-    _min_angular_velocity: float = 0.2
-    _k_angular: float = 0.5
+    _min_angular_velocity: float = 0.35
+    _k_angular: float = 2.0
     _max_angular_accel: float = 2.0
     _rotation_threshold: float = 90 * (math.pi / 180)
 
     def __init__(self, global_config: GlobalConfig, speed: float, control_frequency: float):
         self._global_config = global_config
         self._speed = speed
+        self._max_angular_speed = 2.0 * speed
         self._control_frequency = control_frequency
 
     def advance(self, lookahead_point: NDArray[np.float64], current_odom: PoseStamped) -> Twist:
@@ -63,13 +64,16 @@ class PController:
         desired_yaw = np.arctan2(direction[1], direction[0])
         yaw_error = angle_diff(desired_yaw, robot_yaw)
 
-        angular_velocity = self._compute_angular_velocity(yaw_error)
-
-        # Rotate-then-drive: if heading error is large, rotate in place first
+        # Rotate-then-drive: if heading error is large, rotate in place first.
+        # Apply min velocity so the Go2 overcomes its angular dead zone.
         if abs(yaw_error) > self._rotation_threshold:
+            angular_velocity = self._compute_angular_velocity(yaw_error, apply_min=True)
             return self._angular_twist(angular_velocity)
 
-        # When aligned, drive forward with proportional angular correction
+        # When aligned, drive forward with proportional angular correction.
+        # No min velocity here — small yaw errors must produce small corrections,
+        # not a constant 0.35 rad/s that would cause spiraling.
+        angular_velocity = self._compute_angular_velocity(yaw_error, apply_min=False)
         linear_velocity = self._speed * (1.0 - abs(yaw_error) / self._rotation_threshold)
         linear_velocity = self._apply_min_velocity(linear_velocity, self._min_linear_velocity)
 
@@ -82,10 +86,11 @@ class PController:
         angular_velocity = self._compute_angular_velocity(yaw_error)
         return self._angular_twist(angular_velocity)
 
-    def _compute_angular_velocity(self, yaw_error: float) -> float:
+    def _compute_angular_velocity(self, yaw_error: float, apply_min: bool = True) -> float:
         angular_velocity = self._k_angular * yaw_error
-        angular_velocity = np.clip(angular_velocity, -self._speed, self._speed)
-        angular_velocity = self._apply_min_velocity(angular_velocity, self._min_angular_velocity)
+        angular_velocity = np.clip(angular_velocity, -self._max_angular_speed, self._max_angular_speed)
+        if apply_min:
+            angular_velocity = self._apply_min_velocity(angular_velocity, self._min_angular_velocity)
         return float(angular_velocity)
 
     def reset_errors(self) -> None:
@@ -132,12 +137,14 @@ class PdController(PController):
     def reset_yaw_error(self, value: float) -> None:
         self._prev_yaw_error = value
 
-    def _compute_angular_velocity(self, yaw_error: float) -> float:
+    def _compute_angular_velocity(self, yaw_error: float, apply_min: bool = True) -> float:
         dt = 1.0 / self._control_frequency
 
         # PD control: proportional + derivative damping
+        # Derivative is negative when error is decreasing (robot rotating correctly),
+        # so adding it reduces the command — proper damping behaviour.
         yaw_error_derivative = (yaw_error - self._prev_yaw_error) / dt
-        angular_velocity = self._k_angular * yaw_error - self._k_derivative * yaw_error_derivative
+        angular_velocity = self._k_angular * yaw_error + self._k_derivative * yaw_error_derivative
 
         # Rate limiting: limit angular acceleration to prevent jerky corrections
         max_delta = self._max_angular_accel * dt
@@ -147,8 +154,9 @@ class PdController(PController):
             self._prev_angular_velocity + max_delta,
         )
 
-        angular_velocity = np.clip(angular_velocity, -self._speed, self._speed)
-        angular_velocity = self._apply_min_velocity(angular_velocity, self._min_angular_velocity)
+        angular_velocity = np.clip(angular_velocity, -self._max_angular_speed, self._max_angular_speed)
+        if apply_min:
+            angular_velocity = self._apply_min_velocity(angular_velocity, self._min_angular_velocity)
 
         self._prev_yaw_error = yaw_error
         self._prev_angular_velocity = angular_velocity
