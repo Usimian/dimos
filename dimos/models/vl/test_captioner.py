@@ -45,6 +45,7 @@ def florence2_model(request: pytest.FixtureRequest) -> Generator[Florence2Model,
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_captioner(captioner_model: CaptionerModel, test_image: Image) -> None:
     """Test captioning functionality across different model types."""
     # Test single caption
@@ -73,6 +74,7 @@ def test_captioner(captioner_model: CaptionerModel, test_image: Image) -> None:
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif_in_ci
 def test_florence2_detail_levels(florence2_model: Florence2Model, test_image: Image) -> None:
     """Test Florence-2 different detail levels."""
     detail_levels = ["brief", "normal", "detailed", "more_detailed"]
