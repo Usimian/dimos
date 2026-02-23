@@ -383,7 +383,8 @@ class WebsocketVisModule(Module):
         self._uvicorn_server.run()
 
     def _on_robot_pose(self, msg: PoseStamped) -> None:
-        pose_data = {"type": "vector", "c": [msg.position.x, msg.position.y, msg.position.z]}
+        yaw = msg.orientation.euler[2]
+        pose_data = {"type": "vector", "c": [msg.position.x, msg.position.y, msg.position.z, yaw]}
         self.vis_state["robot_pose"] = pose_data
         self._emit("robot_pose", pose_data)
 

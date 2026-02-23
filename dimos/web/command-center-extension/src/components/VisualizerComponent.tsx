@@ -12,9 +12,10 @@ interface VisualizerComponentProps {
   robotPose: Vector | null;
   path: Path | null;
   goalArrow?: { startPx: [number, number]; endPx: [number, number] } | null;
+  committedGoal?: { worldX: number; worldY: number; yaw?: number } | null;
 }
 
-const VisualizerComponent: React.FC<VisualizerComponentProps> = ({ costmap, robotPose, path, goalArrow }) => {
+const VisualizerComponent: React.FC<VisualizerComponentProps> = ({ costmap, robotPose, path, goalArrow, committedGoal }) => {
   const svgRef = React.useRef<SVGSVGElement>(null);
   const [dimensions, setDimensions] = React.useState({ width: 800, height: 600 });
   const { width, height } = dimensions;
@@ -96,6 +97,35 @@ const VisualizerComponent: React.FC<VisualizerComponentProps> = ({ costmap, robo
         {robotPose && worldToPx && (
           <VectorLayer vector={robotPose} label="robot" worldToPx={worldToPx} />
         )}
+        {committedGoal && worldToPx && (() => {
+          const [gx, gy] = worldToPx(committedGoal.worldX, committedGoal.worldY);
+          const yaw = committedGoal.yaw;
+          const arrowLen = 28, headLen = 10, headHalfWidth = 8;
+          const dx = yaw !== undefined ? Math.cos(yaw) : 0;
+          const dy = yaw !== undefined ? -Math.sin(yaw) : 0;
+          const shaftEndX = gx + dx * (arrowLen - headLen);
+          const shaftEndY = gy + dy * (arrowLen - headLen);
+          const tipX = gx + dx * arrowLen;
+          const tipY = gy + dy * arrowLen;
+          const px = -dy, py = dx;
+          const headPts = [
+            `${shaftEndX + px * headHalfWidth},${shaftEndY + py * headHalfWidth}`,
+            `${tipX},${tipY}`,
+            `${shaftEndX - px * headHalfWidth},${shaftEndY - py * headHalfWidth}`,
+          ].join(" ");
+          return (
+            <g>
+              <circle cx={gx} cy={gy} r={6} fill="none" stroke="#00cc44" strokeWidth={2} />
+              <circle cx={gx} cy={gy} r={3} fill="#00cc44" />
+              {yaw !== undefined && (
+                <>
+                  <line x1={gx} y1={gy} x2={shaftEndX} y2={shaftEndY} stroke="#00cc44" strokeWidth={3} />
+                  <polygon points={headPts} fill="#00cc44" />
+                </>
+              )}
+            </g>
+          );
+        })()}
         {goalArrow && (
           <GoalArrowLayer startPx={goalArrow.startPx} endPx={goalArrow.endPx} />
         )}

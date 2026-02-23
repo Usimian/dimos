@@ -24,6 +24,11 @@ const VisualizerWrapper: React.FC<VisualizerWrapperProps> = ({ data, onWorldClic
     startPx: [number, number];
     endPx: [number, number];
   } | null>(null);
+  const [committedGoal, setCommittedGoal] = React.useState<{
+    worldX: number;
+    worldY: number;
+    yaw?: number;
+  } | null>(null);
 
   const getScales = React.useCallback(() => {
     if (!data.costmap || !containerRef.current) return null;
@@ -138,8 +143,10 @@ const VisualizerWrapper: React.FC<VisualizerWrapperProps> = ({ data, onWorldClic
       if (dist > DRAG_THRESHOLD_PX) {
         // Y axis is flipped between screen and world: world yaw = atan2(-screenDy, screenDx)
         const yaw = Math.atan2(-screenDy, screenDx);
+        setCommittedGoal({ worldX, worldY, yaw });
         onWorldClick(worldX, worldY, yaw);
       } else {
+        setCommittedGoal({ worldX, worldY });
         onWorldClick(worldX, worldY);
       }
     },
@@ -152,6 +159,7 @@ const VisualizerWrapper: React.FC<VisualizerWrapperProps> = ({ data, onWorldClic
       const { worldX, worldY } = dragRef.current;
       dragRef.current = null;
       setGoalArrow(null);
+      setCommittedGoal({ worldX, worldY });
       onWorldClick(worldX, worldY);
     }
   }, [onWorldClick]);
@@ -170,6 +178,7 @@ const VisualizerWrapper: React.FC<VisualizerWrapperProps> = ({ data, onWorldClic
         robotPose={data.robotPose}
         path={data.path}
         goalArrow={goalArrow}
+        committedGoal={committedGoal}
       />
     </div>
   );

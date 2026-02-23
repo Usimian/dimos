@@ -10,13 +10,50 @@ interface VectorLayerProps {
 
 const VectorLayer = React.memo<VectorLayerProps>(({ vector, label, worldToPx }) => {
   const [cx, cy] = worldToPx(vector.coords[0]!, vector.coords[1]!);
+  const yaw: number | undefined = vector.coords[3]; // optional yaw in world radians
   const text = `${label} (${vector.coords[0]!.toFixed(2)}, ${vector.coords[1]!.toFixed(2)})`;
+
+  // Build directional arrow if yaw is available.
+  // World: yaw=0 → east (+x), yaw=π/2 → north (+y, screen up → -y).
+  let arrowEl: React.ReactNode = null;
+  if (yaw !== undefined) {
+    const arrowLen = 28;
+    const headLen = 10;
+    const shaftWidth = 3;
+    const headHalfWidth = 8;
+
+    // Convert world yaw to screen direction (flip y because screen y points down)
+    const dx = Math.cos(yaw);
+    const dy = -Math.sin(yaw);
+
+    const shaftEndX = cx + dx * (arrowLen - headLen);
+    const shaftEndY = cy + dy * (arrowLen - headLen);
+    const tipX = cx + dx * arrowLen;
+    const tipY = cy + dy * arrowLen;
+
+    // Perpendicular unit vector for arrowhead width
+    const px = -dy;
+    const py = dx;
+
+    const headPoints = [
+      `${shaftEndX + px * headHalfWidth},${shaftEndY + py * headHalfWidth}`,
+      `${tipX},${tipY}`,
+      `${shaftEndX - px * headHalfWidth},${shaftEndY - py * headHalfWidth}`,
+    ].join(" ");
+
+    arrowEl = (
+      <>
+        <line x1={cx} y1={cy} x2={shaftEndX} y2={shaftEndY} stroke="red" strokeWidth={shaftWidth} />
+        <polygon points={headPoints} fill="red" />
+      </>
+    );
+  }
 
   return (
     <>
-      <g className="vector-marker" transform={`translate(${cx}, ${cy})`}>
-        <circle r={10} fill="none" stroke="red" strokeWidth={1} opacity={0.9} />
-        <circle r={6} fill="red" />
+      <g className="vector-marker">
+        <circle cx={cx} cy={cy} r={6} fill="red" opacity={0.9} />
+        {arrowEl}
       </g>
       <g>
         <rect
